@@ -112,6 +112,37 @@ describe("PomodoroTimer", () => {
     );
   });
 
+  it("usa la primera materia disponible cuando la selección no es válida", () => {
+    vi.useFakeTimers();
+    const onSessionComplete = vi.fn();
+    const { rerender } = render(
+      <PomodoroTimer
+        durations={{ focus: 60 }}
+        subjects={[]}
+        onSessionComplete={onSessionComplete}
+      />,
+    );
+
+    rerender(
+      <PomodoroTimer
+        durations={{ focus: 60 }}
+        subjects={["Física"]}
+        onSessionComplete={onSessionComplete}
+      />,
+    );
+
+    expect(screen.getByLabelText("Materia")).toHaveValue("Física");
+
+    fireEvent.click(screen.getByRole("button", { name: "Iniciar" }));
+    act(() => {
+      vi.advanceTimersByTime(60000);
+    });
+
+    expect(onSessionComplete).toHaveBeenCalledWith(
+      expect.objectContaining({ subject: "Física" }),
+    );
+  });
+
   it("no tiene violaciones de accesibilidad", async () => {
     const { container } = render(
       <PomodoroTimer subjects={["Matemáticas", "Física"]} />,
