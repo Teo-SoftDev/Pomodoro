@@ -40,6 +40,9 @@ export default function PomodoroTimer({
   const [timer, setTimer] = useState<TimerState>(() => createTimer(durations));
   const [subject, setSubject] = useState<string>(subjects[0] ?? "");
   const previousFocusSessions = useRef(timer.completedFocusSessions);
+  const activeSubject = subjects.includes(subject)
+    ? subject
+    : (subjects[0] ?? "");
 
   useEffect(() => {
     if (timer.status !== "running") {
@@ -58,14 +61,14 @@ export default function PomodoroTimer({
     previousFocusSessions.current = timer.completedFocusSessions;
     onSessionComplete?.({
       id: crypto.randomUUID(),
-      subject: subject === "" ? "General" : subject,
+      subject: activeSubject === "" ? "General" : activeSubject,
       durationMinutes: Math.round(timer.durations.focus / 60),
       mode: "focus",
       completedAt: new Date().toISOString(),
     });
   }, [
     onSessionComplete,
-    subject,
+    activeSubject,
     timer.completedFocusSessions,
     timer.durations.focus,
   ]);
@@ -110,7 +113,7 @@ export default function PomodoroTimer({
         </label>
         <select
           id="pomodoro-subject"
-          value={subject}
+          value={activeSubject}
           onChange={(event) => setSubject(event.target.value)}
           className="min-h-11 w-full rounded-lg border border-zinc-300 bg-transparent px-3 py-2 text-base focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
         >
