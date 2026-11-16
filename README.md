@@ -43,6 +43,15 @@ Todas verificadas en el registro oficial de npm (existencia y mantenimiento) ant
 - **@vitest/coverage-v8** (`5.1.0`): proveedor de cobertura V8; el proyecto exige un mínimo del 80 % en la lógica de negocio.
 - **prettier** (`3.10.1`): formateo determinista exigido por `npm run check`.
 - **@types/node** (de `^20` a `^22`): versión de tipos requerida por el peer de `vitest`; coincide con el runtime Node 22.
+- **jsdom** (`26.1.0`): entorno DOM para las pruebas de componentes. Se fija en 26 porque la 31 exige Node `^22.22` y aquí se usa 22.16.
+- **@testing-library/react** (`16.3.3`) + **@testing-library/dom** (`^10`): renderizado e interacción de componentes en las pruebas.
+- **@testing-library/jest-dom** (`7.0.1`): matchers de aserciones DOM (accesibilidad, visibilidad).
+- **@testing-library/user-event** (`14.6.12`): simulación de interacciones reales de usuario (clic, teclado).
+- **axe-core** (`4.12.1`): motor de auditoría de accesibilidad (mantenido por Deque) usado en las pruebas de componentes. Se usa directo porque `jest-axe` no incluye definiciones de tipos.
+
+## Componentes
+
+El temporizador visual y el selector de materia viven en `src/components/PomodoroTimer.tsx`, con sus pruebas en `src/components/PomodoroTimer.test.tsx`. Es un Client Component autónomo que reutiliza `src/lib/timer.ts`, es responsive mobile-first y cumple WCAG 2.2 AA (HTML semántico, controles nativos, foco visible y anuncio de fase con `aria-live`).
 
 ## Lógica del temporizador
 
