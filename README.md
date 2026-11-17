@@ -48,10 +48,45 @@ Todas verificadas en el registro oficial de npm (existencia y mantenimiento) ant
 - **@testing-library/jest-dom** (`7.0.1`): matchers de aserciones DOM (accesibilidad, visibilidad).
 - **@testing-library/user-event** (`14.6.12`): simulación de interacciones reales de usuario (clic, teclado).
 - **axe-core** (`4.12.1`): motor de auditoría de accesibilidad (mantenido por Deque) usado en las pruebas de componentes. Se usa directo porque `jest-axe` no incluye definiciones de tipos.
+- **firebase-admin** (`14.5.1`): SDK oficial de Firebase para el servidor, publicado por Google y actualizado en noviembre de 2026. Se usa la cuenta de servicio porque las credenciales del proyecto son de Admin SDK; permiten leer y escribir Firestore desde Route Handlers sin exponer la clave privada en el navegador.
+
+## Firebase / Firestore
+
+La conexión se hace únicamente en el servidor (`src/lib/firebase-admin.ts`). El navegador nunca recibe las credenciales: habla con los Route Handlers y estos usan el Admin SDK.
+
+Variables requeridas en `.env.local` (ver `.env.example`):
+
+```bash
+PROJECT_ID=tu-proyecto
+CLIENT_EMAIL=firebase-adminsdk-xxxxx@tu-proyecto.iam.gserviceaccount.com
+PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+```
+
+Estas variables no deben llevar el prefijo `NEXT_PUBLIC_`. La clave privada se normaliza para aceptar el formato con `\n` escapados.
+
+Endpoints:
+
+- `GET /api/health`: comprueba que el servidor puede hablar con Firestore.
+- `GET /api/sessions`: lista las sesiones guardadas.
+- `POST /api/sessions`: crea o actualiza una sesión.
+- `DELETE /api/sessions?id=...`: elimina una sesión.
+- `GET /api/subjects`: lista las materias.
+- `PUT /api/subjects`: reemplaza la lista de materias.
+
+Estructura en Firestore:
+
+- Colección `sessions`, un documento por sesión con id igual a `session.id`.
+- Documento `config/subjects` con el campo `items: string[]`.
+
+`localStorage` sigue siendo la fuente inmediata en el cliente; al montar la aplicación se combinan los datos remotos y locales, y cada cambio local se envía al servidor. Los errores de red no bloquean la interfaz.
+
+> Seguridad: la cuenta de servicio tiene acceso total al proyecto. Si una clave privada se expone, revócala en Google Cloud Console y genera otra. No la incluyas en el repositorio ni en variables `NEXT_PUBLIC_`. Los endpoints aún no tienen autenticación: no despliegues esta versión en producción sin añadirla.
 
 ## Componentes
 
 El temporizador visual y el selector de materia viven en `src/components/PomodoroTimer.tsx`, con sus pruebas en `src/components/PomodoroTimer.test.tsx`. Es un Client Component autónomo que reutiliza `src/lib/timer.ts`, es responsive mobile-first y cumple WCAG 2.2 AA (HTML semántico, controles nativos, foco visible y anuncio de fase con `aria-live`).
+
+El encabezado y el pie son `sticky` y el nav enlaza a `#temporizador` y `#registro`. Antes de iniciar se puede ajustar la duración del enfoque (1-180 minutos); el valor persiste en `localStorage` mediante `durationsStore`. Al pulsar Iniciar, la sesión se registra en el historial como `in-progress` (columna Estado: «En curso») y, si el temporizador llega a cero, pasa a `completed` («Completada»). El resumen por materia solo suma sesiones completadas, tanto en local como en Firestore.
 
 ## Lógica del temporizador
 

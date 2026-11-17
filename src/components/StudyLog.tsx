@@ -11,10 +11,12 @@ import {
 } from "@/lib/sessions";
 
 export interface StudyLogProps {
+  id?: string;
   sessions?: readonly StudySession[];
   subjects?: readonly string[];
   onAddSubject?: (subject: string) => void;
   onRemoveSubject?: (subject: string) => void;
+  onResumeSession?: (session: StudySession) => void;
 }
 
 const ALL_SUBJECTS = "all";
@@ -38,6 +40,12 @@ const BUTTON_CLASS =
 
 const MUTED_TEXT = "text-sm text-zinc-700 dark:text-zinc-300";
 
+const RESUME_CLASS =
+  "min-h-11 rounded-lg border border-zinc-300 px-3 py-2 text-sm font-medium " +
+  "text-foreground transition-colors hover:opacity-90 " +
+  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 " +
+  "focus-visible:outline-foreground dark:border-zinc-700";
+
 function pomodoroLabel(count: number): string {
   return count === 1 ? "1 pomodoro" : `${count} pomodoros`;
 }
@@ -48,11 +56,23 @@ function sortByRecent(sessions: readonly StudySession[]): StudySession[] {
   );
 }
 
+function statusLabel(session: StudySession): string {
+  if (session.status === "paused") {
+    return "En pausa";
+  }
+  if (session.status === "in-progress") {
+    return "En curso";
+  }
+  return "Completada";
+}
+
 export default function StudyLog({
+  id,
   sessions = [],
   subjects = [],
   onAddSubject,
   onRemoveSubject,
+  onResumeSession,
 }: StudyLogProps) {
   const [filter, setFilter] = useState<string>(ALL_SUBJECTS);
   const [newSubject, setNewSubject] = useState<string>("");
@@ -75,8 +95,9 @@ export default function StudyLog({
 
   return (
     <section
+      id={id}
       aria-labelledby="studylog-title"
-      className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-8"
+      className="mx-auto flex w-full max-w-3xl scroll-mt-28 flex-col gap-8 px-4 py-8"
     >
       <h2 id="studylog-title" className="text-xl font-semibold">
         Registro de estudio
@@ -198,7 +219,7 @@ export default function StudyLog({
           </p>
         ) : (
           <div className="w-full overflow-x-auto">
-            <table className="w-full min-w-[28rem] border-collapse text-left text-sm md:text-base">
+            <table className="w-full min-w-[36rem] border-collapse text-left text-sm md:text-base">
               <caption className="sr-only">Historial de sesiones</caption>
               <thead>
                 <tr className="border-b border-zinc-300 dark:border-zinc-700">
@@ -213,6 +234,12 @@ export default function StudyLog({
                   </th>
                   <th scope="col" className="px-3 py-2 font-semibold">
                     Tipo
+                  </th>
+                  <th scope="col" className="px-3 py-2 font-semibold">
+                    Estado
+                  </th>
+                  <th scope="col" className="px-3 py-2 font-semibold">
+                    Acciones
                   </th>
                 </tr>
               </thead>
@@ -232,6 +259,19 @@ export default function StudyLog({
                       {formatDuration(session.durationMinutes)}
                     </td>
                     <td className="px-3 py-2">{MODE_LABELS[session.mode]}</td>
+                    <td className="px-3 py-2">{statusLabel(session)}</td>
+                    <td className="px-3 py-2">
+                      {session.status === "paused" ? (
+                        <button
+                          type="button"
+                          onClick={() => onResumeSession?.(session)}
+                          aria-label={`Reanudar sesión de ${session.subject}`}
+                          className={RESUME_CLASS}
+                        >
+                          Reanudar
+                        </button>
+                      ) : null}
+                    </td>
                   </tr>
                 ))}
               </tbody>

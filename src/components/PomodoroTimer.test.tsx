@@ -9,6 +9,7 @@ import {
 import userEvent from "@testing-library/user-event";
 import axe from "axe-core";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { StudySession } from "@/lib/sessions";
 import PomodoroTimer from "./PomodoroTimer";
 
 afterEach(() => {
@@ -86,40 +87,160 @@ describe("PomodoroTimer", () => {
     expect(status).toHaveTextContent("Fase: Descanso corto");
   });
 
-  it("notifica al completar una sesión de foco", () => {
+  it("registra la sesión como en curso al iniciar y la completa al terminar", () => {
     vi.useFakeTimers();
+    let startedId = "";
+    const onSessionStart = vi.fn((session: StudySession) => {
+      startedId = session.id;
+    });
     const onSessionComplete = vi.fn();
     render(
       <PomodoroTimer
         durations={{ focus: 60 }}
         subjects={["Matemáticas"]}
+        onSessionStart={onSessionStart}
         onSessionComplete={onSessionComplete}
       />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Iniciar" }));
+
+    expect(onSessionStart).toHaveBeenCalledTimes(1);
+    expect(onSessionStart).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subject: "Matemáticas",
+        mode: "focus",
+        durationMinutes: 1,
+        status: "in-progress",
+      }),
+    );
+    expect(onSessionComplete).not.toHaveBeenCalled();
+
     act(() => {
       vi.advanceTimersByTime(60000);
     });
 
     expect(onSessionComplete).toHaveBeenCalledTimes(1);
-    expect(onSessionComplete).toHaveBeenCalledWith(
-      expect.objectContaining({
-        subject: "Matemáticas",
-        mode: "focus",
-        durationMinutes: 1,
-      }),
+    expect(onSessionComplete).toHaveBeenCalledWith(startedId);
+  });
+
+  it("no duplica la sesión al reanudar después de una pausa", () => {
+    vi.useFakeTimers();
+    const onSessionStart = vi.fn();
+    render(<PomodoroTimer onSessionStart={onSessionStart} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Iniciar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Pausar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Iniciar" }));
+
+    expect(onSessionStart).toHaveBeenCalledTimes(1);
+  });
+
+  it("guarda el tiempo restante al pausar y avisa al reanudar", () => {
+    vi.useFakeTimers();
+    let startedId = "";
+    const onSessionStart = vi.fn((session: StudySession) => {
+      startedId = session.id;
+    });
+    const onSessionPause = vi.fn();
+    const onSessionResume = vi.fn();
+    render(
+      <PomodoroTimer
+        onSessionStart={onSessionStart}
+        onSessionPause={onSessionPause}
+        onSessionResume={onSessionResume}
+      />,
     );
+
+    fireEvent.click(screen.getByRole("button", { name: "Iniciar" }));
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Pausar" }));
+
+    expect(onSessionPause).toHaveBeenCalledWith(startedId, 1498);
+    expect(screen.getByText("24:58")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Iniciar" }));
+
+    expect(onSessionResume).toHaveBeenCalledWith(startedId);
+  });
+
+  it("permite cambiar el tiempo en pausa y reanudar con el nuevo valor", () => {
+    vi.useFakeTimers();
+    let startedId = "";
+    const onSessionStart = vi.fn((session: StudySession) => {
+      startedId = session.id;
+    });
+    const onSessionDurationChange = vi.fn();
+    render(
+      <PomodoroTimer
+        durations={{ focus: 60 }}
+        onSessionStart={onSessionStart}
+        onSessionDurationChange={onSessionDurationChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Iniciar" }));
+    act(() => {
+      vi.advanceTimersByTime(10000);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Pausar" }));
+
+    const input = screen.getByLabelText("Minutos de enfoque");
+    expect(input).toBeEnabled();
+
+    fireEvent.change(input, { target: { value: "2" } });
+    fireEvent.blur(input);
+
+    expect(screen.getByText("02:00")).toBeInTheDocument();
+    expect(onSessionDurationChange).toHaveBeenCalledWith(startedId, 2, 120);
+
+    fireEvent.click(screen.getByRole("button", { name: "Iniciar" }));
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+
+    expect(screen.getByText("01:58")).toBeInTheDocument();
+  });
+
+  it("retoma una sesión pausada con su tiempo restante y sin duplicarla", () => {
+    vi.useFakeTimers();
+    const onSessionStart = vi.fn();
+    const onSessionComplete = vi.fn();
+    render(
+      <PomodoroTimer
+        durations={{ focus: 60 }}
+        subjects={["Matemáticas"]}
+        resumeRequest={{
+          sessionId: "s1",
+          subject: "Matemáticas",
+          remainingSeconds: 30,
+        }}
+        onSessionStart={onSessionStart}
+        onSessionComplete={onSessionComplete}
+      />,
+    );
+
+    expect(screen.getByText("00:30")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Pausar" })).toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(30000);
+    });
+
+    expect(onSessionStart).not.toHaveBeenCalled();
+    expect(onSessionComplete).toHaveBeenCalledWith("s1");
   });
 
   it("usa la primera materia disponible cuando la selección no es válida", () => {
     vi.useFakeTimers();
-    const onSessionComplete = vi.fn();
+    const onSessionStart = vi.fn();
     const { rerender } = render(
       <PomodoroTimer
         durations={{ focus: 60 }}
         subjects={[]}
-        onSessionComplete={onSessionComplete}
+        onSessionStart={onSessionStart}
       />,
     );
 
@@ -127,20 +248,52 @@ describe("PomodoroTimer", () => {
       <PomodoroTimer
         durations={{ focus: 60 }}
         subjects={["Física"]}
-        onSessionComplete={onSessionComplete}
+        onSessionStart={onSessionStart}
       />,
     );
 
     expect(screen.getByLabelText("Materia")).toHaveValue("Física");
 
     fireEvent.click(screen.getByRole("button", { name: "Iniciar" }));
-    act(() => {
-      vi.advanceTimersByTime(60000);
-    });
 
-    expect(onSessionComplete).toHaveBeenCalledWith(
+    expect(onSessionStart).toHaveBeenCalledWith(
       expect.objectContaining({ subject: "Física" }),
     );
+  });
+
+  it("permite ajustar los minutos de enfoque cuando está detenido", () => {
+    const onFocusMinutesChange = vi.fn();
+    render(<PomodoroTimer onFocusMinutesChange={onFocusMinutesChange} />);
+
+    const input = screen.getByLabelText("Minutos de enfoque");
+    expect(input).toHaveValue(25);
+
+    fireEvent.change(input, { target: { value: "5" } });
+    fireEvent.blur(input);
+
+    expect(onFocusMinutesChange).toHaveBeenCalledWith(5);
+    expect(screen.getByText("05:00")).toBeInTheDocument();
+  });
+
+  it("limita los minutos de enfoque al rango permitido", () => {
+    const onFocusMinutesChange = vi.fn();
+    render(<PomodoroTimer onFocusMinutesChange={onFocusMinutesChange} />);
+
+    const input = screen.getByLabelText("Minutos de enfoque");
+    fireEvent.change(input, { target: { value: "999" } });
+    fireEvent.blur(input);
+
+    expect(onFocusMinutesChange).toHaveBeenCalledWith(180);
+    expect(input).toHaveValue(180);
+  });
+
+  it("bloquea los minutos de enfoque mientras el temporizador corre", () => {
+    vi.useFakeTimers();
+    render(<PomodoroTimer />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Iniciar" }));
+
+    expect(screen.getByLabelText("Minutos de enfoque")).toBeDisabled();
   });
 
   it("no tiene violaciones de accesibilidad", async () => {

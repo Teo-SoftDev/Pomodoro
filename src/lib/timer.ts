@@ -37,6 +37,18 @@ export function createTimer(
   };
 }
 
+export function resumeTimer(
+  remainingSeconds: number,
+  overrides: Partial<TimerDurations> = {},
+): TimerState {
+  const timer = createTimer(overrides);
+  return {
+    ...timer,
+    status: "running",
+    remaining: Math.max(1, Math.floor(remainingSeconds)),
+  };
+}
+
 export function start(state: TimerState): TimerState {
   if (state.status === "running") {
     return state;
@@ -53,6 +65,30 @@ export function pause(state: TimerState): TimerState {
 
 export function reset(state: TimerState): TimerState {
   return { ...state, status: "idle", remaining: state.durations[state.mode] };
+}
+
+export function updateDurations(
+  state: TimerState,
+  overrides: Partial<TimerDurations>,
+): TimerState {
+  const durations: TimerDurations = {
+    focus: overrides.focus ?? state.durations.focus,
+    shortBreak: overrides.shortBreak ?? state.durations.shortBreak,
+    longBreak: overrides.longBreak ?? state.durations.longBreak,
+  };
+  const unchanged =
+    durations.focus === state.durations.focus &&
+    durations.shortBreak === state.durations.shortBreak &&
+    durations.longBreak === state.durations.longBreak;
+  if (unchanged) {
+    return state;
+  }
+  return {
+    ...state,
+    durations,
+    remaining:
+      state.status === "idle" ? durations[state.mode] : state.remaining,
+  };
 }
 
 function nextModeAfterFocus(completedFocusSessions: number): TimerMode {

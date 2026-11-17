@@ -6,8 +6,10 @@ import {
   formatTime,
   pause,
   reset,
+  resumeTimer,
   start,
   tick,
+  updateDurations,
   type TimerState,
 } from "./timer";
 
@@ -111,6 +113,48 @@ describe("reset", () => {
     expect(reseted.mode).toBe("shortBreak");
     expect(reseted.remaining).toBe(1);
     expect(reseted.status).toBe("idle");
+  });
+});
+
+describe("resumeTimer", () => {
+  it("crea un temporizador en marcha con el tiempo restante indicado", () => {
+    const timer = resumeTimer(42, { focus: 60 });
+
+    expect(timer.status).toBe("running");
+    expect(timer.mode).toBe("focus");
+    expect(timer.remaining).toBe(42);
+    expect(timer.durations.focus).toBe(60);
+  });
+
+  it("normaliza el tiempo restante a segundos enteros positivos", () => {
+    expect(resumeTimer(-10).remaining).toBe(1);
+    expect(resumeTimer(12.9).remaining).toBe(12);
+  });
+});
+
+describe("updateDurations", () => {
+  it("actualiza la duración y el tiempo restante cuando está idle", () => {
+    const updated = updateDurations(createTimer(), { focus: 300 });
+
+    expect(updated.durations.focus).toBe(300);
+    expect(updated.remaining).toBe(300);
+    expect(updated.status).toBe("idle");
+  });
+
+  it("no altera el tiempo restante si el temporizador corre", () => {
+    const running = tick(start(createTimer({ focus: 100 })));
+    const updated = updateDurations(running, { focus: 600 });
+
+    expect(updated.durations.focus).toBe(600);
+    expect(updated.remaining).toBe(99);
+  });
+
+  it("devuelve el mismo estado si las duraciones no cambian", () => {
+    const timer = createTimer();
+
+    expect(updateDurations(timer, { focus: timer.durations.focus })).toBe(
+      timer,
+    );
   });
 });
 

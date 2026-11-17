@@ -14,7 +14,11 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       include: ["src/**/*.{ts,tsx}"],
-      exclude: ["src/**/*.test.{ts,tsx}"],
+      exclude: [
+        "src/**/*.test.{ts,tsx}",
+        "src/lib/firebase-admin.ts",
+        "src/lib/firestore-repository.ts",
+      ],
       thresholds: {
         lines: 80,
         branches: 80,

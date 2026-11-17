@@ -1,12 +1,18 @@
 import { describe, expect, it } from "vitest";
 import {
   addSession,
+  completeSession,
   completedPomodoros,
   createSession,
   filterByDate,
   filterBySubject,
+  isSessionCompleted,
+  isSessionInProgress,
+  pauseSession,
+  resumeSession,
   statsBySubject,
   totalMinutes,
+  updateSessionDuration,
   type StudySession,
 } from "./sessions";
 
@@ -72,6 +78,127 @@ describe("addSession", () => {
   });
 });
 
+describe("completeSession", () => {
+  it("marca como completada la sesión indicada", () => {
+    const inProgress = buildSession({ id: "p1", status: "in-progress" });
+    const other = buildSession({ id: "p2", status: "in-progress" });
+
+    const result = completeSession([inProgress, other], "p1");
+
+    expect(result).toEqual([{ ...inProgress, status: "completed" }, other]);
+  });
+
+  it("deja intactas las sesiones que no coinciden", () => {
+    const completed = buildSession({ id: "p1", status: "completed" });
+
+    expect(completeSession([completed], "otra")).toEqual([completed]);
+  });
+
+  it("reconoce las sesiones en curso", () => {
+    expect(isSessionInProgress(buildSession({ status: "in-progress" }))).toBe(
+      true,
+    );
+    expect(isSessionInProgress(buildSession({ status: "paused" }))).toBe(false);
+    expect(isSessionInProgress(buildSession({ status: "completed" }))).toBe(
+      false,
+    );
+    expect(isSessionInProgress(buildSession())).toBe(false);
+  });
+
+  it("considera completadas las sesiones sin estado o con completed", () => {
+    expect(isSessionCompleted(buildSession())).toBe(true);
+    expect(isSessionCompleted(buildSession({ status: "completed" }))).toBe(
+      true,
+    );
+    expect(isSessionCompleted(buildSession({ status: "in-progress" }))).toBe(
+      false,
+    );
+    expect(isSessionCompleted(buildSession({ status: "paused" }))).toBe(false);
+  });
+});
+
+describe("pauseSession", () => {
+  it("marca la sesión como en pausa y guarda el tiempo restante", () => {
+    const inProgress = buildSession({ id: "p1", status: "in-progress" });
+    const other = buildSession({ id: "p2", status: "in-progress" });
+
+    const result = pauseSession([inProgress, other], "p1", 754);
+
+    expect(result).toEqual([
+      { ...inProgress, status: "paused", remainingSeconds: 754 },
+      other,
+    ]);
+  });
+
+  it("normaliza el tiempo restante a segundos enteros no negativos", () => {
+    const inProgress = buildSession({ id: "p1", status: "in-progress" });
+
+    expect(pauseSession([inProgress], "p1", -12.4)[0]).toEqual(
+      expect.objectContaining({ remainingSeconds: 0 }),
+    );
+  });
+
+  it("deja intactas las sesiones que no coinciden", () => {
+    const session = buildSession({ id: "p1" });
+
+    expect(pauseSession([session], "otra", 10)).toEqual([session]);
+  });
+});
+
+describe("resumeSession", () => {
+  it("vuelve a marcar la sesión como en curso", () => {
+    const paused = buildSession({
+      id: "p1",
+      status: "paused",
+      remainingSeconds: 120,
+    });
+
+    expect(resumeSession([paused], "p1")).toEqual([
+      { ...paused, status: "in-progress" },
+    ]);
+  });
+
+  it("deja intactas las sesiones que no coinciden", () => {
+    const session = buildSession({ id: "p1" });
+
+    expect(resumeSession([session], "otra")).toEqual([session]);
+  });
+});
+
+describe("updateSessionDuration", () => {
+  it("actualiza la duración y el tiempo restante de la sesión indicada", () => {
+    const paused = buildSession({
+      id: "p1",
+      status: "paused",
+      remainingSeconds: 600,
+    });
+    const other = buildSession({ id: "p2" });
+
+    const result = updateSessionDuration([paused, other], "p1", 40, 2400);
+
+    expect(result).toEqual([
+      { ...paused, durationMinutes: 40, remainingSeconds: 2400 },
+      other,
+    ]);
+  });
+
+  it("normaliza el tiempo restante a segundos enteros no negativos", () => {
+    const paused = buildSession({ id: "p1", status: "paused" });
+
+    expect(updateSessionDuration([paused], "p1", 10, -5.2)[0]).toEqual(
+      expect.objectContaining({ remainingSeconds: 0 }),
+    );
+  });
+
+  it("deja intactas las sesiones que no coinciden", () => {
+    const session = buildSession({ id: "p1" });
+
+    expect(updateSessionDuration([session], "otra", 10, 600)).toEqual([
+      session,
+    ]);
+  });
+});
+
 describe("filterBySubject", () => {
   it("devuelve solo las sesiones de la materia indicada", () => {
     const result = filterBySubject([math, mathLater, physics], "Matemáticas");
@@ -107,6 +234,22 @@ describe("totalMinutes", () => {
     expect(totalMinutes([math, mathLater, physics, mathBreak])).toBe(100);
   });
 
+  it("ignora las sesiones en curso y en pausa", () => {
+    const inProgress = buildSession({
+      id: "running",
+      durationMinutes: 25,
+      status: "in-progress",
+    });
+    const paused = buildSession({
+      id: "paused",
+      durationMinutes: 25,
+      status: "paused",
+      remainingSeconds: 600,
+    });
+
+    expect(totalMinutes([math, inProgress, paused])).toBe(25);
+  });
+
   it("devuelve cero con una lista vacía", () => {
     expect(totalMinutes([])).toBe(0);
   });
@@ -115,6 +258,16 @@ describe("totalMinutes", () => {
 describe("completedPomodoros", () => {
   it("cuenta solo las sesiones de foco", () => {
     expect(completedPomodoros([math, mathLater, physics, mathBreak])).toBe(3);
+  });
+
+  it("no cuenta las sesiones en curso ni en pausa", () => {
+    expect(
+      completedPomodoros([
+        math,
+        buildSession({ status: "in-progress" }),
+        buildSession({ status: "paused" }),
+      ]),
+    ).toBe(1);
   });
 
   it("devuelve cero con una lista vacía", () => {
@@ -144,6 +297,22 @@ describe("statsBySubject", () => {
     const result = statsBySubject([chemistryBreak]);
 
     expect(result).toEqual([]);
+  });
+
+  it("omite las sesiones de enfoque en curso o en pausa", () => {
+    const inProgress = buildSession({
+      id: "running",
+      status: "in-progress",
+    });
+    const paused = buildSession({
+      id: "paused",
+      status: "paused",
+      remainingSeconds: 300,
+    });
+
+    expect(statsBySubject([math, inProgress, paused])).toEqual([
+      { subject: "Matemáticas", totalMinutes: 25, pomodoros: 1 },
+    ]);
   });
 
   it("respeta el orden de primera aparición", () => {

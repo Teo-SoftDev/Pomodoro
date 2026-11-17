@@ -1,4 +1,5 @@
-import type { SessionMode, StudySession } from "./sessions";
+import { isRecord, isSessionArray, isStringArray } from "./schema";
+import type { StudySession } from "./sessions";
 import { DEFAULT_DURATIONS, type TimerDurations } from "./timer";
 
 export interface PersistedState {
@@ -22,41 +23,6 @@ function getStorage(): Storage | null {
     return null;
   }
   return window.localStorage;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function isArrayOfUnknown(value: unknown): value is unknown[] {
-  return Array.isArray(value);
-}
-
-function isStringArray(value: unknown): value is string[] {
-  return (
-    isArrayOfUnknown(value) && value.every((item) => typeof item === "string")
-  );
-}
-
-function isSessionMode(value: unknown): value is SessionMode {
-  return value === "focus" || value === "break";
-}
-
-function isStudySession(value: unknown): value is StudySession {
-  if (!isRecord(value)) {
-    return false;
-  }
-  return (
-    typeof value.id === "string" &&
-    typeof value.subject === "string" &&
-    typeof value.durationMinutes === "number" &&
-    isSessionMode(value.mode) &&
-    typeof value.completedAt === "string"
-  );
-}
-
-function isSessionArray(value: unknown): value is StudySession[] {
-  return isArrayOfUnknown(value) && value.every(isStudySession);
 }
 
 function isDurations(value: unknown): value is TimerDurations {

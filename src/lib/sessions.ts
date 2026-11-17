@@ -1,11 +1,15 @@
 export type SessionMode = "focus" | "break";
 
+export type SessionStatus = "in-progress" | "paused" | "completed";
+
 export interface StudySession {
   id: string;
   subject: string;
   durationMinutes: number;
   mode: SessionMode;
   completedAt: string;
+  status?: SessionStatus;
+  remainingSeconds?: number;
 }
 
 export interface SubjectStats {
@@ -23,6 +27,65 @@ export function addSession(
   session: StudySession,
 ): StudySession[] {
   return [...sessions, session];
+}
+
+export function isSessionInProgress(session: StudySession): boolean {
+  return session.status === "in-progress";
+}
+
+export function isSessionCompleted(session: StudySession): boolean {
+  return session.status === undefined || session.status === "completed";
+}
+
+export function pauseSession(
+  sessions: readonly StudySession[],
+  id: string,
+  remainingSeconds: number,
+): StudySession[] {
+  return sessions.map((session) =>
+    session.id === id
+      ? {
+          ...session,
+          status: "paused",
+          remainingSeconds: Math.max(0, Math.floor(remainingSeconds)),
+        }
+      : session,
+  );
+}
+
+export function resumeSession(
+  sessions: readonly StudySession[],
+  id: string,
+): StudySession[] {
+  return sessions.map((session) =>
+    session.id === id ? { ...session, status: "in-progress" } : session,
+  );
+}
+
+export function updateSessionDuration(
+  sessions: readonly StudySession[],
+  id: string,
+  durationMinutes: number,
+  remainingSeconds: number,
+): StudySession[] {
+  return sessions.map((session) =>
+    session.id === id
+      ? {
+          ...session,
+          durationMinutes,
+          remainingSeconds: Math.max(0, Math.floor(remainingSeconds)),
+        }
+      : session,
+  );
+}
+
+export function completeSession(
+  sessions: readonly StudySession[],
+  id: string,
+): StudySession[] {
+  return sessions.map((session) =>
+    session.id === id ? { ...session, status: "completed" } : session,
+  );
 }
 
 export function filterBySubject(
@@ -45,11 +108,14 @@ export function filterByDate(
 export function totalMinutes(sessions: readonly StudySession[]): number {
   return sessions
     .filter((session) => session.mode === "focus")
+    .filter(isSessionCompleted)
     .reduce((total, session) => total + session.durationMinutes, 0);
 }
 
 export function completedPomodoros(sessions: readonly StudySession[]): number {
-  return sessions.filter((session) => session.mode === "focus").length;
+  return sessions
+    .filter((session) => session.mode === "focus")
+    .filter(isSessionCompleted).length;
 }
 
 export function statsBySubject(
@@ -57,7 +123,7 @@ export function statsBySubject(
 ): SubjectStats[] {
   const stats = new Map<string, SubjectStats>();
   for (const session of sessions) {
-    if (session.mode !== "focus") {
+    if (session.mode !== "focus" || !isSessionCompleted(session)) {
       continue;
     }
     const current = stats.get(session.subject);

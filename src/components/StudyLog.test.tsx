@@ -13,6 +13,7 @@ function focusSession(
   subject: string,
   minutes: number,
   completedAt: string,
+  status?: StudySession["status"],
 ): StudySession {
   return {
     id: `${subject}-${completedAt}`,
@@ -20,6 +21,7 @@ function focusSession(
     durationMinutes: minutes,
     mode: "focus",
     completedAt,
+    status,
   };
 }
 
@@ -62,6 +64,58 @@ describe("StudyLog", () => {
     expect(
       within(table).getByText(formatSessionDate("2026-11-16T10:00:00.000Z")),
     ).toBeInTheDocument();
+  });
+
+  it("muestra el estado y no suma las sesiones en curso al resumen", () => {
+    render(
+      <StudyLog
+        sessions={[
+          focusSession(
+            "Matemáticas",
+            25,
+            "2026-11-16T10:00:00.000Z",
+            "completed",
+          ),
+          focusSession(
+            "Matemáticas",
+            50,
+            "2026-11-16T11:00:00.000Z",
+            "in-progress",
+          ),
+          focusSession("Matemáticas", 30, "2026-11-16T12:00:00.000Z", "paused"),
+        ]}
+      />,
+    );
+
+    const summary = screen.getByRole("region", {
+      name: "Resumen por materia",
+    });
+    expect(within(summary).getByText(formatDuration(25))).toBeInTheDocument();
+    expect(within(summary).queryByText(formatDuration(75))).toBeNull();
+
+    const table = screen.getByRole("table");
+    expect(within(table).getByText("En curso")).toBeInTheDocument();
+    expect(within(table).getByText("En pausa")).toBeInTheDocument();
+    expect(within(table).getByText("Completada")).toBeInTheDocument();
+  });
+
+  it("permite reanudar una sesión en pausa desde el historial", async () => {
+    const user = userEvent.setup();
+    const onResumeSession = vi.fn();
+    const paused: StudySession = {
+      ...focusSession("Matemáticas", 25, "2026-11-16T10:00:00.000Z", "paused"),
+      remainingSeconds: 300,
+    };
+    render(<StudyLog sessions={[paused]} onResumeSession={onResumeSession} />);
+
+    const table = screen.getByRole("table");
+    await user.click(
+      within(table).getByRole("button", {
+        name: "Reanudar sesión de Matemáticas",
+      }),
+    );
+
+    expect(onResumeSession).toHaveBeenCalledWith(paused);
   });
 
   it("ordena el historial de más reciente a más antiguo", () => {
