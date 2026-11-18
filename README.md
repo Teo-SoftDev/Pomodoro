@@ -70,7 +70,11 @@ AUTH_LOCK_MINUTES=15
 AUTH_SESSION_DAYS=7
 ```
 
-Estas variables no deben llevar el prefijo `NEXT_PUBLIC_`. La clave privada se normaliza para aceptar el formato con `\n` escapados. `AUTH_IP_HASH_SECRET` se usa con HMAC-SHA256 para guardar el hash de la IP en los intentos de acceso; puede generarse con `openssl rand -hex 32`. Sin este valor el login falla.
+Estas variables no deben llevar el prefijo `NEXT_PUBLIC_`. La clave privada se normaliza para aceptar el formato con `\n` escapados. `AUTH_IP_HASH_SECRET` se usa con HMAC-SHA256 para guardar el hash de la IP en los intentos de acceso; puede generarse con `openssl rand -hex 32`. Sin este valor el login falla: no hay secreto por defecto para no debilitar la protección de IP.
+
+### Vercel
+
+Añade `PROJECT_ID`, `CLIENT_EMAIL`, `PRIVATE_KEY` y `AUTH_IP_HASH_SECRET` en **Project Settings → Environment Variables** para los entornos que uses (Production, Preview y Development). Conserva los `\n` escapados en `PRIVATE_KEY` y redespliega después de guardar los cambios. Si falta `AUTH_IP_HASH_SECRET`, el formulario mostrará un mensaje controlado en lugar de un error genérico del servidor.
 
 Endpoints:
 

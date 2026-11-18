@@ -1,11 +1,14 @@
 import { createHmac } from "node:crypto";
 
+export const MISSING_IP_SECRET_ERROR =
+  "AUTH_IP_HASH_SECRET no está configurado.";
+
 export function readIpSecret(
   environment: Readonly<Record<string, string | undefined>> = process.env,
 ): string {
   const secret = environment.AUTH_IP_HASH_SECRET;
   if (!secret || secret.trim() === "") {
-    throw new Error("AUTH_IP_HASH_SECRET no está configurado.");
+    throw new Error(MISSING_IP_SECRET_ERROR);
   }
   return secret;
 }

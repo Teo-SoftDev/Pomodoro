@@ -7,6 +7,7 @@ import {
   type AuthActionState,
 } from "@/lib/auth/action-state";
 import { authenticate, registerUser } from "@/lib/auth/auth-service";
+import { isAuthConfigurationError } from "@/lib/auth/config-errors";
 import { clientIpFromHeaders } from "@/lib/auth/ip";
 import { revokeCurrentSession, setSessionCookie } from "@/lib/auth/session";
 import { authDependencies } from "@/lib/auth/server-dependencies";
@@ -75,11 +76,23 @@ export async function loginAction(
     return { ...state, error: "Correo o contraseña incorrectos." };
   }
 
-  const result = await authenticate(
-    credentials,
-    await currentIp(),
-    authDependencies,
-  );
+  let result: Awaited<ReturnType<typeof authenticate>>;
+  try {
+    result = await authenticate(
+      credentials,
+      await currentIp(),
+      authDependencies,
+    );
+  } catch (error) {
+    if (isAuthConfigurationError(error)) {
+      return {
+        ...state,
+        error:
+          "El servidor no está configurado correctamente. Inténtalo más tarde.",
+      };
+    }
+    throw error;
+  }
   if (!result.ok) {
     return {
       ...state,

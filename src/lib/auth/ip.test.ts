@@ -1,12 +1,15 @@
 import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { clientIpFromHeaders, ipKey, readIpSecret } from "./ip";
+import {
+  clientIpFromHeaders,
+  ipKey,
+  MISSING_IP_SECRET_ERROR,
+  readIpSecret,
+} from "./ip";
 
 describe("readIpSecret", () => {
   it("exige una clave configurada", () => {
-    expect(() => readIpSecret({})).toThrow(
-      "AUTH_IP_HASH_SECRET no está configurado.",
-    );
+    expect(() => readIpSecret({})).toThrow(MISSING_IP_SECRET_ERROR);
     expect(readIpSecret({ AUTH_IP_HASH_SECRET: "secreto" })).toBe("secreto");
   });
 });
