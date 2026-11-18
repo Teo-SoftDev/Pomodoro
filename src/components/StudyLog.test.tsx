@@ -157,32 +157,6 @@ describe("StudyLog", () => {
     expect(within(table).getByText("Física")).toBeInTheDocument();
   });
 
-  it("permite agregar una materia con el valor recortado", async () => {
-    const user = userEvent.setup();
-    const onAddSubject = vi.fn();
-    render(<StudyLog subjects={["Matemáticas"]} onAddSubject={onAddSubject} />);
-
-    await user.type(screen.getByLabelText("Nueva materia"), "  Química  ");
-    await user.click(screen.getByRole("button", { name: "Agregar" }));
-
-    expect(onAddSubject).toHaveBeenCalledWith("Química");
-  });
-
-  it("permite eliminar una materia", async () => {
-    const user = userEvent.setup();
-    const onRemoveSubject = vi.fn();
-    render(
-      <StudyLog
-        subjects={["Matemáticas", "Física"]}
-        onRemoveSubject={onRemoveSubject}
-      />,
-    );
-
-    await user.click(screen.getByRole("button", { name: "Eliminar Física" }));
-
-    expect(onRemoveSubject).toHaveBeenCalledWith("Física");
-  });
-
   it("muestra un estado vacío sin tabla cuando no hay sesiones", () => {
     render(<StudyLog />);
 

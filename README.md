@@ -105,7 +105,12 @@ Estructura en Firestore:
 Rutas públicas:
 
 - `/login`: acceso con correo y contraseña.
-- `/registro`: creación de cuenta. `/` redirige a `/login` si no hay sesión válida.
+- `/registro`: creación de cuenta. `/` y `/historial` redirigen a `/login` si no hay sesión válida.
+
+Rutas protegidas:
+
+- `/`: temporizador y administración de materias.
+- `/historial`: resumen, filtro y tabla de sesiones. Al pulsar «Reanudar», la solicitud se guarda en `sessionStorage` y el temporizador la consume al cargar `/`.
 
 Política de acceso:
 
@@ -119,7 +124,9 @@ Política de acceso:
 
 El temporizador visual y el selector de materia viven en `src/components/PomodoroTimer.tsx`, con sus pruebas en `src/components/PomodoroTimer.test.tsx`. Es un Client Component autónomo que reutiliza `src/lib/timer.ts`, es responsive mobile-first y cumple WCAG 2.2 AA (HTML semántico, controles nativos, foco visible y anuncio de fase con `aria-live`).
 
-El encabezado y el pie son `sticky` y el nav enlaza a `#temporizador` y `#registro`. Antes de iniciar se puede ajustar la duración del enfoque (1-180 minutos); el valor persiste en `localStorage` mediante `durationsStore`. Al pulsar Iniciar, la sesión se registra en el historial como `in-progress` (columna Estado: «En curso») y, si el temporizador llega a cero, pasa a `completed` («Completada»). El resumen por materia solo suma sesiones completadas, tanto en local como en Firestore.
+El encabezado y el pie son `sticky` y el nav enlaza a `/` y `/historial`. La cabecera, la navegación, el correo, el cierre de sesión y el pie viven en `src/components/StudyPageShell.tsx`; el estado compartido (stores, migración, sincronización y acciones) está en `src/hooks/useStudyData.ts`. Las materias se administran en `src/components/SubjectManager.tsx` y el historial en `src/components/StudyLog.tsx`, que ya no incluye formularios de materias.
+
+Antes de iniciar se puede ajustar la duración del enfoque (1-180 minutos); el valor persiste en `localStorage` mediante `durationsStore`. Al pulsar Iniciar, la sesión se registra en el historial como `in-progress` (columna Estado: «En curso») y, si el temporizador llega a cero, pasa a `completed` («Completada»). El resumen por materia solo suma sesiones completadas, tanto en local como en Firestore.
 
 ## Lógica del temporizador
 

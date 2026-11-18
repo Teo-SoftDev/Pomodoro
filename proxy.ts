@@ -12,5 +12,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/", "/api/sessions/:path*", "/api/subjects/:path*"],
+  matcher: ["/", "/historial", "/api/sessions/:path*", "/api/subjects/:path*"],
 };

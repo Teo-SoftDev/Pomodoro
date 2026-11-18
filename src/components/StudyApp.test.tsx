@@ -10,21 +10,30 @@ import {
 import userEvent from "@testing-library/user-event";
 import axe from "axe-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createUserStorage, saveSessions } from "@/lib/storage";
+import {
+  getResumeRequestSnapshot,
+  resetResumeRequest,
+  setResumeRequest,
+} from "@/lib/resume-request";
+import { createUserStorage } from "@/lib/storage";
 import StudyApp from "./StudyApp";
 
 const USER_ID = "test-user";
 const userStorage = createUserStorage(USER_ID);
 
 beforeEach(() => {
+  resetResumeRequest();
   window.localStorage.clear();
+  window.sessionStorage.clear();
   window.localStorage.setItem("pomodoro.legacyMigrated.v1", "1");
 });
 
 afterEach(() => {
   cleanup();
+  resetResumeRequest();
   vi.useRealTimers();
   window.localStorage.clear();
+  window.sessionStorage.clear();
 });
 
 describe("StudyApp", () => {
@@ -46,32 +55,7 @@ describe("StudyApp", () => {
     ).toHaveAttribute("href", "#contenido");
   });
 
-  it("no importa el historial legacy en una cuenta que no es dueña", () => {
-    window.localStorage.removeItem("pomodoro.legacyMigrated.v1");
-    window.localStorage.setItem("pomodoro.user-2.legacyMigrated.v1", "1");
-    saveSessions([
-      {
-        id: "legacy-1",
-        subject: "Historia",
-        durationMinutes: 25,
-        mode: "focus",
-        completedAt: "2026-11-16T09:00:00.000Z",
-      },
-    ]);
-
-    render(
-      <StudyApp
-        userId="user-2"
-        email="otra@ejemplo.com"
-        isLegacyOwner={false}
-      />,
-    );
-
-    expect(screen.getByText("No hay sesiones registradas")).toBeInTheDocument();
-    expect(screen.queryByText("Historia")).toBeNull();
-  });
-
-  it("ofrece navegación fija hacia el temporizador y el registro", () => {
+  it("enlaza el temporizador con esta ruta y el historial con /historial", () => {
     render(
       <StudyApp
         userId={USER_ID}
@@ -85,12 +69,30 @@ describe("StudyApp", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Temporizador" })).toHaveAttribute(
       "href",
-      "#temporizador",
+      "/",
     );
-    expect(screen.getByRole("link", { name: "Registro" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Temporizador" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(screen.getByRole("link", { name: "Historial" })).toHaveAttribute(
       "href",
-      "#registro",
+      "/historial",
     );
+  });
+
+  it("no muestra el historial en la pantalla del temporizador", () => {
+    render(
+      <StudyApp
+        userId={USER_ID}
+        email="usuario@ejemplo.com"
+        isLegacyOwner={false}
+      />,
+    );
+
+    expect(screen.queryByRole("table")).toBeNull();
+    expect(screen.queryByText("Resumen por materia")).toBeNull();
+    expect(screen.queryByText("Filtrar por materia")).toBeNull();
   });
 
   it("es operable solo con teclado", async () => {
@@ -112,7 +114,7 @@ describe("StudyApp", () => {
     expect(screen.getByRole("link", { name: "Temporizador" })).toHaveFocus();
 
     await user.tab();
-    expect(screen.getByRole("link", { name: "Registro" })).toHaveFocus();
+    expect(screen.getByRole("link", { name: "Historial" })).toHaveFocus();
 
     await user.tab();
     expect(screen.getByRole("button", { name: "Cerrar sesión" })).toHaveFocus();
@@ -131,7 +133,7 @@ describe("StudyApp", () => {
     expect(screen.getByRole("button", { name: "Pausar" })).toBeInTheDocument();
   });
 
-  it("registra la sesión al iniciar, la completa al terminar y actualiza las estadísticas", () => {
+  it("registra y completa la sesión sin mostrar el historial", () => {
     userStorage.saveSubjects(["Matemáticas"]);
     vi.useFakeTimers();
     render(
@@ -151,21 +153,19 @@ describe("StudyApp", () => {
       vi.advanceTimersByTime(60000);
     });
 
-    const summary = screen.getByRole("region", {
-      name: "Resumen por materia",
-    });
-    expect(within(summary).getByText("Matemáticas")).toBeInTheDocument();
-    expect(within(summary).getByText("1 minuto")).toBeInTheDocument();
-    expect(
-      within(screen.getByRole("table")).getByText("Matemáticas"),
-    ).toBeInTheDocument();
     expect(userStorage.loadSessions()).toHaveLength(1);
     expect(userStorage.loadSessions()[0]?.status).toBe("completed");
+    expect(screen.queryByRole("table")).toBeNull();
   });
 
-  it("guarda la sesión como en pausa y la reanuda desde el historial", () => {
+  it("consume la solicitud de reanudación guardada por el historial", () => {
     userStorage.saveSubjects(["Matemáticas"]);
-    vi.useFakeTimers();
+    setResumeRequest(USER_ID, {
+      sessionId: "paused-1",
+      subject: "Matemáticas",
+      remainingSeconds: 120,
+    });
+
     render(
       <StudyApp
         userId={USER_ID}
@@ -175,41 +175,16 @@ describe("StudyApp", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Iniciar" }));
-    act(() => {
-      vi.advanceTimersByTime(20000);
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Pausar" }));
-
-    expect(userStorage.loadSessions()[0]).toEqual(
-      expect.objectContaining({ status: "paused", remainingSeconds: 40 }),
-    );
-
-    const focusInput = screen.getByLabelText("Minutos de enfoque");
-    fireEvent.change(focusInput, { target: { value: "2" } });
-    fireEvent.blur(focusInput);
-
-    expect(userStorage.loadSessions()[0]).toEqual(
-      expect.objectContaining({
-        status: "paused",
-        durationMinutes: 2,
-        remainingSeconds: 120,
-      }),
-    );
-    expect(userStorage.loadDurations().focus).toBe(120);
-
-    const table = screen.getByRole("table");
-    expect(within(table).getByText("En pausa")).toBeInTheDocument();
-
-    fireEvent.click(
-      within(table).getByRole("button", {
-        name: "Reanudar sesión de Matemáticas",
-      }),
-    );
-
-    expect(userStorage.loadSessions()[0]?.status).toBe("in-progress");
-    expect(screen.getByRole("button", { name: "Pausar" })).toBeInTheDocument();
     expect(screen.getByText("02:00")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Pausar" })).toBeInTheDocument();
+    expect(getResumeRequestSnapshot()).toEqual({
+      sessionId: "paused-1",
+      subject: "Matemáticas",
+      remainingSeconds: 120,
+    });
+    expect(
+      window.sessionStorage.getItem(`pomodoro.${USER_ID}.resumeRequest.v1`),
+    ).toBeNull();
   });
 
   it("persiste los minutos de enfoque elegidos", () => {
@@ -229,7 +204,7 @@ describe("StudyApp", () => {
     expect(screen.getByText("40:00")).toBeInTheDocument();
   });
 
-  it("comparte las materias entre el temporizador y el registro", async () => {
+  it("comparte las materias entre el temporizador y el administrador", async () => {
     userStorage.saveSubjects(["Matemáticas"]);
     const user = userEvent.setup();
     render(

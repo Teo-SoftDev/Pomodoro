@@ -11,6 +11,13 @@ describe("proxy", () => {
     expect(response.headers.get("location")).toBe("http://localhost/login");
   });
 
+  it("redirige a /login cuando falta la cookie en /historial", () => {
+    const response = proxy(new NextRequest("http://localhost/historial"));
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe("http://localhost/login");
+  });
+
   it("devuelve 401 en APIs sin cookie", () => {
     const response = proxy(new NextRequest("http://localhost/api/sessions"));
 
