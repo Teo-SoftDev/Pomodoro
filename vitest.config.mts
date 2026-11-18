@@ -18,6 +18,7 @@ export default defineConfig({
         "src/**/*.test.{ts,tsx}",
         "src/lib/firebase-admin.ts",
         "src/lib/firestore-repository.ts",
+        "src/lib/auth/auth-store.ts",
       ],
       thresholds: {
         lines: 80,

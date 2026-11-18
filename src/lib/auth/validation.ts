@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { isRecord } from "../schema";
 import { validatePassword } from "./password";
 
@@ -10,6 +11,12 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function normalizeEmail(value: string): string {
   return value.trim().toLowerCase();
+}
+
+export function emailKey(email: string): string {
+  return createHash("sha256")
+    .update(normalizeEmail(email), "utf8")
+    .digest("hex");
 }
 
 export function validateEmail(value: string): string | null {
