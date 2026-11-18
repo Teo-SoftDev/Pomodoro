@@ -78,52 +78,64 @@ function writeValue(
   storage.setItem(key, JSON.stringify(value));
 }
 
-function createStorageAccessors(namespace?: string): StorageAccessors {
+interface StorageKeys {
+  subjects: string;
+  durations: string;
+  sessions: string;
+}
+
+function storageKeys(namespace?: string): StorageKeys {
   const prefix = namespace ? `pomodoro.${namespace}` : "pomodoro";
-  const subjectsKey = `${prefix}.subjects.v1`;
-  const durationsKey = `${prefix}.durations.v1`;
-  const sessionsKey = `${prefix}.sessions.v1`;
+  return {
+    subjects: `${prefix}.subjects.v1`,
+    durations: `${prefix}.durations.v1`,
+    sessions: `${prefix}.sessions.v1`,
+  };
+}
+
+function createStorageAccessors(namespace?: string): StorageAccessors {
+  const keys = storageKeys(namespace);
 
   return {
     loadSubjects(storage: Storage | null = getStorage()): string[] {
-      return readValue(storage, subjectsKey, isStringArray, []);
+      return readValue(storage, keys.subjects, isStringArray, []);
     },
     saveSubjects(
       subjects: readonly string[],
       storage: Storage | null = getStorage(),
     ): void {
-      writeValue(storage, subjectsKey, subjects);
+      writeValue(storage, keys.subjects, subjects);
     },
     loadDurations(storage: Storage | null = getStorage()): TimerDurations {
-      return readValue(storage, durationsKey, isDurations, DEFAULT_DURATIONS);
+      return readValue(storage, keys.durations, isDurations, DEFAULT_DURATIONS);
     },
     saveDurations(
       durations: TimerDurations,
       storage: Storage | null = getStorage(),
     ): void {
-      writeValue(storage, durationsKey, durations);
+      writeValue(storage, keys.durations, durations);
     },
     loadSessions(storage: Storage | null = getStorage()): StudySession[] {
-      return readValue(storage, sessionsKey, isSessionArray, []);
+      return readValue(storage, keys.sessions, isSessionArray, []);
     },
     saveSessions(
       sessions: readonly StudySession[],
       storage: Storage | null = getStorage(),
     ): void {
-      writeValue(storage, sessionsKey, sessions);
+      writeValue(storage, keys.sessions, sessions);
     },
     clearSessions(storage: Storage | null = getStorage()): void {
       if (storage) {
-        storage.removeItem(sessionsKey);
+        storage.removeItem(keys.sessions);
       }
     },
     clearAll(storage: Storage | null = getStorage()): void {
       if (!storage) {
         return;
       }
-      storage.removeItem(subjectsKey);
-      storage.removeItem(durationsKey);
-      storage.removeItem(sessionsKey);
+      storage.removeItem(keys.subjects);
+      storage.removeItem(keys.durations);
+      storage.removeItem(keys.sessions);
     },
   };
 }
@@ -143,20 +155,75 @@ export function createUserStorage(userId: string): StorageAccessors {
   return createStorageAccessors(userId);
 }
 
+const LEGACY_MIGRATION_MARKER = "pomodoro.legacyMigrated.v1";
+
+function legacyUserMarkerKey(userId: string): string {
+  return `pomodoro.${userId}.legacyMigrated.v1`;
+}
+
+function removeDuplicatedLegacyData(userId: string, storage: Storage): void {
+  if (storage.getItem(legacyUserMarkerKey(userId)) !== "1") {
+    return;
+  }
+  const legacySubjects = legacyStorage.loadSubjects(storage);
+  const legacySessions = legacyStorage.loadSessions(storage);
+  if (legacySubjects.length === 0 && legacySessions.length === 0) {
+    return;
+  }
+  const legacySessionIds = new Set(legacySessions.map((session) => session.id));
+  const userStorage = createUserStorage(userId);
+  userStorage.saveSubjects(
+    userStorage
+      .loadSubjects(storage)
+      .filter((subject) => !legacySubjects.includes(subject)),
+    storage,
+  );
+  userStorage.saveSessions(
+    userStorage
+      .loadSessions(storage)
+      .filter((session) => !legacySessionIds.has(session.id)),
+    storage,
+  );
+}
+
 export function migrateLegacyLocalStorage(
   userId: string,
+  isLegacyOwner: boolean,
   storage: Storage | null = getStorage(),
 ): void {
   if (!storage) {
     return;
   }
-  const markerKey = `pomodoro.${userId}.legacyMigrated.v1`;
-  if (storage.getItem(markerKey) === "1") {
+  const userMarkerKey = legacyUserMarkerKey(userId);
+
+  if (!isLegacyOwner) {
+    removeDuplicatedLegacyData(userId, storage);
+    storage.removeItem(userMarkerKey);
     return;
   }
+
+  if (storage.getItem(LEGACY_MIGRATION_MARKER) === "1") {
+    storage.removeItem(userMarkerKey);
+    return;
+  }
+
   const userStorage = createUserStorage(userId);
+  const userKeys = storageKeys(userId);
+  const hasUserData =
+    storage.getItem(userKeys.subjects) !== null ||
+    storage.getItem(userKeys.sessions) !== null;
+
+  if (hasUserData) {
+    storage.setItem(LEGACY_MIGRATION_MARKER, "1");
+    storage.removeItem(userMarkerKey);
+    return;
+  }
+
   userStorage.saveSubjects(legacyStorage.loadSubjects(storage), storage);
-  userStorage.saveDurations(legacyStorage.loadDurations(storage), storage);
+  if (storage.getItem(userKeys.durations) === null) {
+    userStorage.saveDurations(legacyStorage.loadDurations(storage), storage);
+  }
   userStorage.saveSessions(legacyStorage.loadSessions(storage), storage);
-  storage.setItem(markerKey, "1");
+  storage.setItem(LEGACY_MIGRATION_MARKER, "1");
+  storage.removeItem(userMarkerKey);
 }

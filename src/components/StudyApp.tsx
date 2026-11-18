@@ -17,7 +17,11 @@ import {
   type StudySession,
 } from "@/lib/sessions";
 import { mergeSessions, mergeSubjects } from "@/lib/sync-merge";
-import { migrateLegacyLocalStorage } from "@/lib/storage";
+import {
+  loadSessions,
+  loadSubjects,
+  migrateLegacyLocalStorage,
+} from "@/lib/storage";
 import type { TimerDurations } from "@/lib/timer";
 import PomodoroTimer, { type TimerResumeRequest } from "./PomodoroTimer";
 import StudyLog from "./StudyLog";
@@ -25,6 +29,7 @@ import StudyLog from "./StudyLog";
 export interface StudyAppProps {
   userId: string;
   email: string;
+  isLegacyOwner: boolean;
   durations?: Partial<TimerDurations>;
 }
 
@@ -34,7 +39,12 @@ const NAV_LINK_CLASS =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 " +
   "focus-visible:outline-foreground";
 
-export default function StudyApp({ userId, email, durations }: StudyAppProps) {
+export default function StudyApp({
+  userId,
+  email,
+  isLegacyOwner,
+  durations,
+}: StudyAppProps) {
   const {
     subjects: subjectsStore,
     sessions: sessionsStore,
@@ -65,27 +75,41 @@ export default function StudyApp({ userId, email, durations }: StudyAppProps) {
   } | null>(null);
 
   useEffect(() => {
-    migrateLegacyLocalStorage(userId);
+    migrateLegacyLocalStorage(userId, isLegacyOwner);
     subjectsStore.invalidate();
     sessionsStore.invalidate();
     durationsStore.invalidate();
-  }, [userId, subjectsStore, sessionsStore, durationsStore]);
+  }, [userId, isLegacyOwner, subjectsStore, sessionsStore, durationsStore]);
 
   useEffect(() => {
     const controller = new AbortController();
+    const legacySessionIds = new Set(
+      isLegacyOwner ? [] : loadSessions().map((session) => session.id),
+    );
+    const legacySubjects = isLegacyOwner ? [] : loadSubjects();
     void pullRemoteState(controller.signal).then((remote) => {
       if (!remote || controller.signal.aborted) {
         return;
       }
       subjectsStore.set(
-        mergeSubjects(subjectsStore.getSnapshot(), remote.subjects),
+        mergeSubjects(
+          subjectsStore.getSnapshot(),
+          remote.subjects.filter(
+            (subject) => !legacySubjects.includes(subject),
+          ),
+        ),
       );
       sessionsStore.set(
-        mergeSessions(sessionsStore.getSnapshot(), remote.sessions),
+        mergeSessions(
+          sessionsStore.getSnapshot(),
+          remote.sessions.filter(
+            (session) => !legacySessionIds.has(session.id),
+          ),
+        ),
       );
     });
     return () => controller.abort();
-  }, [subjectsStore, sessionsStore]);
+  }, [isLegacyOwner, subjectsStore, sessionsStore]);
 
   function handleAddSubject(subject: string) {
     if (subjects.includes(subject)) {

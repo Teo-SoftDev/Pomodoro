@@ -1,6 +1,8 @@
+import { connection } from "next/server";
 import { Suspense } from "react";
 import StudyApp from "@/components/StudyApp";
 import { requireUser } from "@/lib/auth/dal";
+import { readLegacyClaimOwner } from "@/lib/auth/legacy-migration";
 
 export default function Home() {
   return (
@@ -19,6 +21,16 @@ export default function Home() {
 }
 
 async function AuthenticatedApp() {
-  const user = await requireUser();
-  return <StudyApp userId={user.id} email={user.email} />;
+  await connection();
+  const [user, legacyOwnerId] = await Promise.all([
+    requireUser(),
+    readLegacyClaimOwner(),
+  ]);
+  return (
+    <StudyApp
+      userId={user.id}
+      email={user.email}
+      isLegacyOwner={user.id === legacyOwnerId}
+    />
+  );
 }

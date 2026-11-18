@@ -227,22 +227,69 @@ describe("storage por usuario", () => {
     expect(second.loadSubjects(storage)).toEqual(["Física"]);
   });
 
-  it("migra los datos legacy una sola vez", () => {
+  it("migra los datos legacy del dueño una sola vez", () => {
     const storage = new FakeStorage();
     saveSubjects(["Historia"], storage);
     saveSessions([sampleSession], storage);
     const userStorage = createUserStorage("user-1");
 
-    migrateLegacyLocalStorage("user-1", storage);
+    migrateLegacyLocalStorage("user-1", true, storage);
     expect(userStorage.loadSubjects(storage)).toEqual(["Historia"]);
     expect(userStorage.loadSessions(storage)).toEqual([sampleSession]);
+    expect(storage.getItem("pomodoro.legacyMigrated.v1")).toBe("1");
 
     userStorage.saveSubjects(["Física"], storage);
-    migrateLegacyLocalStorage("user-1", storage);
+    migrateLegacyLocalStorage("user-1", true, storage);
     expect(userStorage.loadSubjects(storage)).toEqual(["Física"]);
   });
 
+  it("no migra datos legacy a cuentas que no son dueñas", () => {
+    const storage = new FakeStorage();
+    saveSubjects(["Historia"], storage);
+    saveSessions([sampleSession], storage);
+    const userStorage = createUserStorage("user-2");
+
+    migrateLegacyLocalStorage("user-2", false, storage);
+
+    expect(userStorage.loadSubjects(storage)).toEqual([]);
+    expect(userStorage.loadSessions(storage)).toEqual([]);
+    expect(storage.getItem("pomodoro.legacyMigrated.v1")).toBeNull();
+  });
+
+  it("elimina copias legacy previas de cuentas que no son dueñas", () => {
+    const storage = new FakeStorage();
+    saveSubjects(["Historia"], storage);
+    saveSessions([sampleSession], storage);
+    const userStorage = createUserStorage("user-2");
+    userStorage.saveSubjects(["Historia", "Química"], storage);
+    userStorage.saveSessions(
+      [sampleSession, { ...sampleSession, id: "s2", subject: "Química" }],
+      storage,
+    );
+    storage.setItem("pomodoro.user-2.legacyMigrated.v1", "1");
+
+    migrateLegacyLocalStorage("user-2", false, storage);
+
+    expect(userStorage.loadSubjects(storage)).toEqual(["Química"]);
+    expect(
+      userStorage.loadSessions(storage).map((session) => session.id),
+    ).toEqual(["s2"]);
+    expect(storage.getItem("pomodoro.user-2.legacyMigrated.v1")).toBeNull();
+  });
+
+  it("no sobrescribe los datos del dueño al migrar en otro navegador", () => {
+    const storage = new FakeStorage();
+    saveSubjects(["Historia"], storage);
+    const userStorage = createUserStorage("user-1");
+    userStorage.saveSubjects(["Física"], storage);
+
+    migrateLegacyLocalStorage("user-1", true, storage);
+
+    expect(userStorage.loadSubjects(storage)).toEqual(["Física"]);
+    expect(storage.getItem("pomodoro.legacyMigrated.v1")).toBe("1");
+  });
+
   it("no hace nada sin almacenamiento disponible", () => {
-    expect(() => migrateLegacyLocalStorage("user-1", null)).not.toThrow();
+    expect(() => migrateLegacyLocalStorage("user-1", true, null)).not.toThrow();
   });
 });

@@ -14,6 +14,19 @@ import {
 const MIGRATIONS_COLLECTION = "migrations";
 const LEGACY_CLAIM_DOCUMENT = "legacyClaim";
 
+export async function readLegacyClaimOwner(): Promise<string | null> {
+  try {
+    const snapshot = await getAdminFirestore()
+      .collection(MIGRATIONS_COLLECTION)
+      .doc(LEGACY_CLAIM_DOCUMENT)
+      .get();
+    const owner = snapshot.data()?.claimedBy;
+    return typeof owner === "string" && owner.trim().length > 0 ? owner : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function claimLegacyData(userId: string): Promise<void> {
   const firestore = getAdminFirestore();
   const [subjectsSnapshot, sessionsSnapshot] = await Promise.all([

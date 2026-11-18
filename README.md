@@ -92,7 +92,7 @@ Estructura en Firestore:
 - `users/{userId}/sessions/{id}`: historial de estudio por usuario.
 - `users/{userId}/config/subjects`: materias por usuario en `items: string[]`.
 
-`localStorage` sigue siendo la fuente inmediata en el cliente, pero usa claves namespaced por usuario: `pomodoro.{userId}.subjects.v1`, `pomodoro.{userId}.durations.v1` y `pomodoro.{userId}.sessions.v1`. Al iniciar sesión por primera vez, el usuario reclama los datos legacy una sola vez y estos se copian a su espacio y a Firestore. Los errores de red no bloquean la interfaz.
+`localStorage` sigue siendo la fuente inmediata en el cliente, pero usa claves namespaced por usuario: `pomodoro.{userId}.subjects.v1`, `pomodoro.{userId}.durations.v1` y `pomodoro.{userId}.sessions.v1`. Solo el usuario dueño de `migrations/legacyClaim` reclama los datos legacy, una sola vez y sin sobrescribir datos ya existentes. Las cuentas posteriores empiezan con materias e historial vacíos y son las usuarias quienes registran sus materias. Los errores de red no bloquean la interfaz.
 
 > Seguridad: la cuenta de servicio tiene acceso total al proyecto. Si una clave privada se expone, revócala en Google Cloud Console y genera otra. No la incluyas en el repositorio ni en variables `NEXT_PUBLIC_`. Las contraseñas se almacenan con `scrypt` (N=16384, r=8, p=1) y sal aleatoria; la sesión viaja en una cookie `httpOnly` y `SameSite=Lax`.
 

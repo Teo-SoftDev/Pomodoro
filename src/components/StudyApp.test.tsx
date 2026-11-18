@@ -10,7 +10,7 @@ import {
 import userEvent from "@testing-library/user-event";
 import axe from "axe-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createUserStorage } from "@/lib/storage";
+import { createUserStorage, saveSessions } from "@/lib/storage";
 import StudyApp from "./StudyApp";
 
 const USER_ID = "test-user";
@@ -18,7 +18,7 @@ const userStorage = createUserStorage(USER_ID);
 
 beforeEach(() => {
   window.localStorage.clear();
-  window.localStorage.setItem(`pomodoro.${USER_ID}.legacyMigrated.v1`, "1");
+  window.localStorage.setItem("pomodoro.legacyMigrated.v1", "1");
 });
 
 afterEach(() => {
@@ -29,7 +29,13 @@ afterEach(() => {
 
 describe("StudyApp", () => {
   it("usa landmarks, un único h1 y un enlace de salto", () => {
-    render(<StudyApp userId={USER_ID} email="usuario@ejemplo.com" />);
+    render(
+      <StudyApp
+        userId={USER_ID}
+        email="usuario@ejemplo.com"
+        isLegacyOwner={false}
+      />,
+    );
 
     expect(screen.getByRole("banner")).toBeInTheDocument();
     expect(screen.getByRole("main")).toBeInTheDocument();
@@ -40,8 +46,39 @@ describe("StudyApp", () => {
     ).toHaveAttribute("href", "#contenido");
   });
 
+  it("no importa el historial legacy en una cuenta que no es dueña", () => {
+    window.localStorage.removeItem("pomodoro.legacyMigrated.v1");
+    window.localStorage.setItem("pomodoro.user-2.legacyMigrated.v1", "1");
+    saveSessions([
+      {
+        id: "legacy-1",
+        subject: "Historia",
+        durationMinutes: 25,
+        mode: "focus",
+        completedAt: "2026-11-16T09:00:00.000Z",
+      },
+    ]);
+
+    render(
+      <StudyApp
+        userId="user-2"
+        email="otra@ejemplo.com"
+        isLegacyOwner={false}
+      />,
+    );
+
+    expect(screen.getByText("No hay sesiones registradas")).toBeInTheDocument();
+    expect(screen.queryByText("Historia")).toBeNull();
+  });
+
   it("ofrece navegación fija hacia el temporizador y el registro", () => {
-    render(<StudyApp userId={USER_ID} email="usuario@ejemplo.com" />);
+    render(
+      <StudyApp
+        userId={USER_ID}
+        email="usuario@ejemplo.com"
+        isLegacyOwner={false}
+      />,
+    );
 
     expect(
       screen.getByRole("navigation", { name: "Secciones principales" }),
@@ -58,7 +95,13 @@ describe("StudyApp", () => {
 
   it("es operable solo con teclado", async () => {
     const user = userEvent.setup();
-    render(<StudyApp userId={USER_ID} email="usuario@ejemplo.com" />);
+    render(
+      <StudyApp
+        userId={USER_ID}
+        email="usuario@ejemplo.com"
+        isLegacyOwner={false}
+      />,
+    );
 
     await user.tab();
     expect(
@@ -95,6 +138,7 @@ describe("StudyApp", () => {
       <StudyApp
         userId={USER_ID}
         email="usuario@ejemplo.com"
+        isLegacyOwner={false}
         durations={{ focus: 60 }}
       />,
     );
@@ -126,6 +170,7 @@ describe("StudyApp", () => {
       <StudyApp
         userId={USER_ID}
         email="usuario@ejemplo.com"
+        isLegacyOwner={false}
         durations={{ focus: 60 }}
       />,
     );
@@ -168,7 +213,13 @@ describe("StudyApp", () => {
   });
 
   it("persiste los minutos de enfoque elegidos", () => {
-    render(<StudyApp userId={USER_ID} email="usuario@ejemplo.com" />);
+    render(
+      <StudyApp
+        userId={USER_ID}
+        email="usuario@ejemplo.com"
+        isLegacyOwner={false}
+      />,
+    );
 
     const input = screen.getByLabelText("Minutos de enfoque");
     fireEvent.change(input, { target: { value: "40" } });
@@ -181,7 +232,13 @@ describe("StudyApp", () => {
   it("comparte las materias entre el temporizador y el registro", async () => {
     userStorage.saveSubjects(["Matemáticas"]);
     const user = userEvent.setup();
-    render(<StudyApp userId={USER_ID} email="usuario@ejemplo.com" />);
+    render(
+      <StudyApp
+        userId={USER_ID}
+        email="usuario@ejemplo.com"
+        isLegacyOwner={false}
+      />,
+    );
 
     await user.type(screen.getByLabelText("Nueva materia"), "Química");
     await user.click(screen.getByRole("button", { name: "Agregar" }));
@@ -196,7 +253,13 @@ describe("StudyApp", () => {
   it("elimina una materia y la quita del temporizador", async () => {
     userStorage.saveSubjects(["Matemáticas", "Física"]);
     const user = userEvent.setup();
-    render(<StudyApp userId={USER_ID} email="usuario@ejemplo.com" />);
+    render(
+      <StudyApp
+        userId={USER_ID}
+        email="usuario@ejemplo.com"
+        isLegacyOwner={false}
+      />,
+    );
 
     await user.click(screen.getByRole("button", { name: "Eliminar Física" }));
 
@@ -210,7 +273,11 @@ describe("StudyApp", () => {
   it("no tiene violaciones de accesibilidad", async () => {
     userStorage.saveSubjects(["Matemáticas"]);
     const { container } = render(
-      <StudyApp userId={USER_ID} email="usuario@ejemplo.com" />,
+      <StudyApp
+        userId={USER_ID}
+        email="usuario@ejemplo.com"
+        isLegacyOwner={false}
+      />,
     );
 
     const results = await axe.run(container, {
