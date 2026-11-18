@@ -54,33 +54,62 @@ Todas verificadas en el registro oficial de npm (existencia y mantenimiento) ant
 
 La conexión se hace únicamente en el servidor (`src/lib/firebase-admin.ts`). El navegador nunca recibe las credenciales: habla con los Route Handlers y estos usan el Admin SDK.
 
-Variables requeridas en `.env.local` (ver `.env.example`):
+Variables requeridas en `.env.local`:
 
 ```bash
 PROJECT_ID=tu-proyecto
 CLIENT_EMAIL=firebase-adminsdk-xxxxx@tu-proyecto.iam.gserviceaccount.com
 PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+AUTH_IP_HASH_SECRET=valor-aleatorio-largo-y-secreto
 ```
 
-Estas variables no deben llevar el prefijo `NEXT_PUBLIC_`. La clave privada se normaliza para aceptar el formato con `\n` escapados.
+Opcionales con valor por defecto:
+
+```bash
+AUTH_LOCK_MINUTES=15
+AUTH_SESSION_DAYS=7
+```
+
+Estas variables no deben llevar el prefijo `NEXT_PUBLIC_`. La clave privada se normaliza para aceptar el formato con `\n` escapados. `AUTH_IP_HASH_SECRET` se usa con HMAC-SHA256 para guardar el hash de la IP en los intentos de acceso; puede generarse con `openssl rand -hex 32`. Sin este valor el login falla.
 
 Endpoints:
 
-- `GET /api/health`: comprueba que el servidor puede hablar con Firestore.
-- `GET /api/sessions`: lista las sesiones guardadas.
-- `POST /api/sessions`: crea o actualiza una sesión.
-- `DELETE /api/sessions?id=...`: elimina una sesión.
-- `GET /api/subjects`: lista las materias.
-- `PUT /api/subjects`: reemplaza la lista de materias.
+- `GET /api/health`: comprueba que el servidor puede hablar con Firestore; es público.
+- `GET /api/sessions`: lista las sesiones del usuario autenticado.
+- `POST /api/sessions`: crea o actualiza una sesión del usuario autenticado.
+- `DELETE /api/sessions?id=...`: elimina una sesión del usuario autenticado.
+- `GET /api/subjects`: lista las materias del usuario autenticado.
+- `PUT /api/subjects`: reemplaza la lista de materias del usuario autenticado.
+
+Todos excepto `/api/health` exigen la cookie de sesión `pomodoro_session`.
 
 Estructura en Firestore:
 
-- Colección `sessions`, un documento por sesión con id igual a `session.id`.
-- Documento `config/subjects` con el campo `items: string[]`.
+- `users/{userId}`: correo, hash de contraseña y fecha de creación.
+- `authSessions/{sha256(token)}`: sesión activa con `userId`, expiración y metadatos.
+- `loginAttempts/{accountKey|ipKey}`: contador de fallos y bloqueo temporal.
+- `migrations/legacyClaim`: registro del primer usuario que reclama los datos antiguos.
+- `users/{userId}/sessions/{id}`: historial de estudio por usuario.
+- `users/{userId}/config/subjects`: materias por usuario en `items: string[]`.
 
-`localStorage` sigue siendo la fuente inmediata en el cliente; al montar la aplicación se combinan los datos remotos y locales, y cada cambio local se envía al servidor. Los errores de red no bloquean la interfaz.
+`localStorage` sigue siendo la fuente inmediata en el cliente, pero usa claves namespaced por usuario: `pomodoro.{userId}.subjects.v1`, `pomodoro.{userId}.durations.v1` y `pomodoro.{userId}.sessions.v1`. Al iniciar sesión por primera vez, el usuario reclama los datos legacy una sola vez y estos se copian a su espacio y a Firestore. Los errores de red no bloquean la interfaz.
 
-> Seguridad: la cuenta de servicio tiene acceso total al proyecto. Si una clave privada se expone, revócala en Google Cloud Console y genera otra. No la incluyas en el repositorio ni en variables `NEXT_PUBLIC_`. Los endpoints aún no tienen autenticación: no despliegues esta versión en producción sin añadirla.
+> Seguridad: la cuenta de servicio tiene acceso total al proyecto. Si una clave privada se expone, revócala en Google Cloud Console y genera otra. No la incluyas en el repositorio ni en variables `NEXT_PUBLIC_`. Las contraseñas se almacenan con `scrypt` (N=16384, r=8, p=1) y sal aleatoria; la sesión viaja en una cookie `httpOnly` y `SameSite=Lax`.
+
+## Autenticación
+
+Rutas públicas:
+
+- `/login`: acceso con correo y contraseña.
+- `/registro`: creación de cuenta. `/` redirige a `/login` si no hay sesión válida.
+
+Política de acceso:
+
+- Contraseña de al menos 10 caracteres con un símbolo; se rechazan valores vacíos y correos inválidos.
+- Tras 3 fallos se bloquea durante `AUTH_LOCK_MINUTES` (15 por defecto). El bloqueo se aplica por cuenta normalizada y por hash de IP: si cualquiera alcanza el límite, se deniega el acceso.
+- Los usuarios inexistentes usan un hash ficticio para igualar el tiempo de respuesta y no revelar qué correos están registrados.
+- El formulario muestra el error correspondiente y una cuenta atrás accesible mientras dura el bloqueo.
+- El cierre de sesión revoca el documento de sesión y borra la cookie.
 
 ## Componentes
 
@@ -96,4 +125,10 @@ Verificación completa (tipos, lint, formato y pruebas con cobertura):
 
 ```bash
 npm run check
+```
+
+También se recomienda verificar la compilación de producción:
+
+```bash
+npm run build
 ```
