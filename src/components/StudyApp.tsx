@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { logoutAction } from "../../app/actions/auth";
 import { createAppStores } from "@/lib/app-store";
 import {
   pullRemoteState,
@@ -23,6 +24,7 @@ import StudyLog from "./StudyLog";
 
 export interface StudyAppProps {
   userId: string;
+  email: string;
   durations?: Partial<TimerDurations>;
 }
 
@@ -32,7 +34,7 @@ const NAV_LINK_CLASS =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 " +
   "focus-visible:outline-foreground";
 
-export default function StudyApp({ userId, durations }: StudyAppProps) {
+export default function StudyApp({ userId, email, durations }: StudyAppProps) {
   const {
     subjects: subjectsStore,
     sessions: sessionsStore,
@@ -178,20 +180,38 @@ export default function StudyApp({ userId, durations }: StudyAppProps) {
               Enfócate por ciclos y registra tus sesiones por materia.
             </p>
           </div>
-          <nav aria-label="Secciones principales">
-            <ul className="flex flex-wrap gap-1">
-              <li>
-                <a href="#temporizador" className={NAV_LINK_CLASS}>
-                  Temporizador
-                </a>
-              </li>
-              <li>
-                <a href="#registro" className={NAV_LINK_CLASS}>
-                  Registro
-                </a>
-              </li>
-            </ul>
-          </nav>
+          <div className="flex flex-col gap-2 sm:items-end">
+            <nav aria-label="Secciones principales">
+              <ul className="flex flex-wrap gap-1">
+                <li>
+                  <a href="#temporizador" className={NAV_LINK_CLASS}>
+                    Temporizador
+                  </a>
+                </li>
+                <li>
+                  <a href="#registro" className={NAV_LINK_CLASS}>
+                    Registro
+                  </a>
+                </li>
+              </ul>
+            </nav>
+            <div className="flex flex-wrap items-center gap-3">
+              <p
+                className="max-w-[14rem] truncate text-xs text-zinc-600 dark:text-zinc-400"
+                title={email}
+              >
+                {email}
+              </p>
+              <form action={logoutAction}>
+                <button
+                  type="submit"
+                  className="min-h-11 rounded-lg border border-zinc-300 px-3 text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground dark:border-zinc-700"
+                >
+                  Cerrar sesión
+                </button>
+              </form>
+            </div>
+          </div>
         </div>
       </header>
 

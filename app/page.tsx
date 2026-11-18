@@ -20,5 +20,5 @@ export default function Home() {
 
 async function AuthenticatedApp() {
   const user = await requireUser();
-  return <StudyApp userId={user.id} />;
+  return <StudyApp userId={user.id} email={user.email} />;
 }

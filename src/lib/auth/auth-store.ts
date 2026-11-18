@@ -1,5 +1,6 @@
 import { getAdminFirestore } from "../firebase-admin";
 import { isRecord } from "../schema";
+import { UserAlreadyExistsError } from "./errors";
 import {
   parseAuthSessionRecord,
   type AuthSessionRecord,
@@ -9,13 +10,6 @@ import { emailKey } from "./validation";
 
 const USERS_COLLECTION = "users";
 const AUTH_SESSIONS_COLLECTION = "authSessions";
-
-export class UserAlreadyExistsError extends Error {
-  constructor() {
-    super("Ya existe una cuenta con ese correo.");
-    this.name = "UserAlreadyExistsError";
-  }
-}
 
 function isConflict(error: unknown): boolean {
   return isRecord(error) && error.code === 6;

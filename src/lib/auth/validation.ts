@@ -7,6 +7,11 @@ export interface Credentials {
   password: string;
 }
 
+export interface FieldErrors {
+  email?: string;
+  password?: string;
+}
+
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function normalizeEmail(value: string): string {
@@ -54,4 +59,20 @@ export function parseRegistration(value: unknown): Credentials | null {
     return null;
   }
   return credentials;
+}
+
+export function registrationFieldErrors(
+  email: string,
+  password: string,
+): FieldErrors {
+  const emailError = validateEmail(email);
+  const passwordIssue = validatePassword(password).at(0);
+  const errors: FieldErrors = {};
+  if (emailError) {
+    errors.email = emailError;
+  }
+  if (passwordIssue) {
+    errors.password = passwordIssue;
+  }
+  return errors;
 }

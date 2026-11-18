@@ -7,3 +7,10 @@ export class PasswordPolicyError extends Error {
     this.issues = [...issues];
   }
 }
+
+export class UserAlreadyExistsError extends Error {
+  constructor() {
+    super("Ya existe una cuenta con ese correo.");
+    this.name = "UserAlreadyExistsError";
+  }
+}

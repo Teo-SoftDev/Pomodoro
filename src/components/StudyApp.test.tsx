@@ -29,7 +29,7 @@ afterEach(() => {
 
 describe("StudyApp", () => {
   it("usa landmarks, un único h1 y un enlace de salto", () => {
-    render(<StudyApp userId={USER_ID} />);
+    render(<StudyApp userId={USER_ID} email="usuario@ejemplo.com" />);
 
     expect(screen.getByRole("banner")).toBeInTheDocument();
     expect(screen.getByRole("main")).toBeInTheDocument();
@@ -41,7 +41,7 @@ describe("StudyApp", () => {
   });
 
   it("ofrece navegación fija hacia el temporizador y el registro", () => {
-    render(<StudyApp userId={USER_ID} />);
+    render(<StudyApp userId={USER_ID} email="usuario@ejemplo.com" />);
 
     expect(
       screen.getByRole("navigation", { name: "Secciones principales" }),
@@ -58,7 +58,7 @@ describe("StudyApp", () => {
 
   it("es operable solo con teclado", async () => {
     const user = userEvent.setup();
-    render(<StudyApp userId={USER_ID} />);
+    render(<StudyApp userId={USER_ID} email="usuario@ejemplo.com" />);
 
     await user.tab();
     expect(
@@ -70,6 +70,9 @@ describe("StudyApp", () => {
 
     await user.tab();
     expect(screen.getByRole("link", { name: "Registro" })).toHaveFocus();
+
+    await user.tab();
+    expect(screen.getByRole("button", { name: "Cerrar sesión" })).toHaveFocus();
 
     await user.tab();
     expect(screen.getByLabelText("Minutos de enfoque")).toHaveFocus();
@@ -88,7 +91,13 @@ describe("StudyApp", () => {
   it("registra la sesión al iniciar, la completa al terminar y actualiza las estadísticas", () => {
     userStorage.saveSubjects(["Matemáticas"]);
     vi.useFakeTimers();
-    render(<StudyApp userId={USER_ID} durations={{ focus: 60 }} />);
+    render(
+      <StudyApp
+        userId={USER_ID}
+        email="usuario@ejemplo.com"
+        durations={{ focus: 60 }}
+      />,
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Iniciar" }));
     expect(userStorage.loadSessions()).toHaveLength(1);
@@ -113,7 +122,13 @@ describe("StudyApp", () => {
   it("guarda la sesión como en pausa y la reanuda desde el historial", () => {
     userStorage.saveSubjects(["Matemáticas"]);
     vi.useFakeTimers();
-    render(<StudyApp userId={USER_ID} durations={{ focus: 60 }} />);
+    render(
+      <StudyApp
+        userId={USER_ID}
+        email="usuario@ejemplo.com"
+        durations={{ focus: 60 }}
+      />,
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Iniciar" }));
     act(() => {
@@ -153,7 +168,7 @@ describe("StudyApp", () => {
   });
 
   it("persiste los minutos de enfoque elegidos", () => {
-    render(<StudyApp userId={USER_ID} />);
+    render(<StudyApp userId={USER_ID} email="usuario@ejemplo.com" />);
 
     const input = screen.getByLabelText("Minutos de enfoque");
     fireEvent.change(input, { target: { value: "40" } });
@@ -166,7 +181,7 @@ describe("StudyApp", () => {
   it("comparte las materias entre el temporizador y el registro", async () => {
     userStorage.saveSubjects(["Matemáticas"]);
     const user = userEvent.setup();
-    render(<StudyApp userId={USER_ID} />);
+    render(<StudyApp userId={USER_ID} email="usuario@ejemplo.com" />);
 
     await user.type(screen.getByLabelText("Nueva materia"), "Química");
     await user.click(screen.getByRole("button", { name: "Agregar" }));
@@ -181,7 +196,7 @@ describe("StudyApp", () => {
   it("elimina una materia y la quita del temporizador", async () => {
     userStorage.saveSubjects(["Matemáticas", "Física"]);
     const user = userEvent.setup();
-    render(<StudyApp userId={USER_ID} />);
+    render(<StudyApp userId={USER_ID} email="usuario@ejemplo.com" />);
 
     await user.click(screen.getByRole("button", { name: "Eliminar Física" }));
 
@@ -194,7 +209,9 @@ describe("StudyApp", () => {
 
   it("no tiene violaciones de accesibilidad", async () => {
     userStorage.saveSubjects(["Matemáticas"]);
-    const { container } = render(<StudyApp userId={USER_ID} />);
+    const { container } = render(
+      <StudyApp userId={USER_ID} email="usuario@ejemplo.com" />,
+    );
 
     const results = await axe.run(container, {
       rules: { "color-contrast": { enabled: false } },
