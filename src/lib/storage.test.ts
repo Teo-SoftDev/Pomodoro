@@ -4,9 +4,11 @@ import {
   DEFAULT_STATE,
   clearAll,
   clearSessions,
+  createUserStorage,
   loadDurations,
   loadSessions,
   loadSubjects,
+  migrateLegacyLocalStorage,
   saveDurations,
   saveSessions,
   saveSubjects,
@@ -203,5 +205,44 @@ describe("clearAll", () => {
     expect(storage.getItem(SUBJECTS_KEY)).toBeNull();
     expect(storage.getItem(DURATIONS_KEY)).toBeNull();
     expect(storage.getItem(SESSIONS_KEY)).toBeNull();
+  });
+});
+
+describe("storage por usuario", () => {
+  it("usa claves distintas para cada usuario", () => {
+    const storage = new FakeStorage();
+    const first = createUserStorage("user-1");
+    const second = createUserStorage("user-2");
+
+    first.saveSubjects(["Matemáticas"], storage);
+    second.saveSubjects(["Física"], storage);
+
+    expect(storage.getItem("pomodoro.user-1.subjects.v1")).toBe(
+      JSON.stringify(["Matemáticas"]),
+    );
+    expect(storage.getItem("pomodoro.user-2.subjects.v1")).toBe(
+      JSON.stringify(["Física"]),
+    );
+    expect(first.loadSubjects(storage)).toEqual(["Matemáticas"]);
+    expect(second.loadSubjects(storage)).toEqual(["Física"]);
+  });
+
+  it("migra los datos legacy una sola vez", () => {
+    const storage = new FakeStorage();
+    saveSubjects(["Historia"], storage);
+    saveSessions([sampleSession], storage);
+    const userStorage = createUserStorage("user-1");
+
+    migrateLegacyLocalStorage("user-1", storage);
+    expect(userStorage.loadSubjects(storage)).toEqual(["Historia"]);
+    expect(userStorage.loadSessions(storage)).toEqual([sampleSession]);
+
+    userStorage.saveSubjects(["Física"], storage);
+    migrateLegacyLocalStorage("user-1", storage);
+    expect(userStorage.loadSubjects(storage)).toEqual(["Física"]);
+  });
+
+  it("no hace nada sin almacenamiento disponible", () => {
+    expect(() => migrateLegacyLocalStorage("user-1", null)).not.toThrow();
   });
 });

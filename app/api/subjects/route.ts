@@ -1,4 +1,5 @@
 import { parseSubjectsPayload } from "@/lib/api-payload";
+import { requireApiUser } from "@/lib/auth/dal";
 import { readSubjects, writeSubjects } from "@/lib/firestore-repository";
 
 async function readBody(request: Request): Promise<unknown> {
@@ -16,15 +17,27 @@ function unavailable(): Response {
   );
 }
 
+function unauthorized(): Response {
+  return Response.json({ error: "No autenticado." }, { status: 401 });
+}
+
 export async function GET() {
+  const user = await requireApiUser();
+  if (!user) {
+    return unauthorized();
+  }
   try {
-    return Response.json({ subjects: await readSubjects() });
+    return Response.json({ subjects: await readSubjects(user.id) });
   } catch {
     return unavailable();
   }
 }
 
 export async function PUT(request: Request) {
+  const user = await requireApiUser();
+  if (!user) {
+    return unauthorized();
+  }
   const body = await readBody(request);
   const subjects = parseSubjectsPayload(body);
   if (!subjects) {
@@ -34,7 +47,7 @@ export async function PUT(request: Request) {
     );
   }
   try {
-    await writeSubjects(subjects);
+    await writeSubjects(user.id, subjects);
     return Response.json({ subjects });
   } catch {
     return unavailable();

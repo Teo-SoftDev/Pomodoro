@@ -20,6 +20,7 @@ export default defineConfig({
         "src/lib/firestore-repository.ts",
         "src/lib/auth/auth-store.ts",
         "src/lib/auth/lockout-store.ts",
+        "src/lib/auth/legacy-migration.ts",
       ],
       thresholds: {
         lines: 80,

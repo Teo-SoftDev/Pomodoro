@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { durationsStore, sessionsStore, subjectsStore } from "@/lib/app-store";
+import { createAppStores } from "@/lib/app-store";
 import {
   pullRemoteState,
   pushSession,
@@ -16,11 +16,13 @@ import {
   type StudySession,
 } from "@/lib/sessions";
 import { mergeSessions, mergeSubjects } from "@/lib/sync-merge";
+import { migrateLegacyLocalStorage } from "@/lib/storage";
 import type { TimerDurations } from "@/lib/timer";
 import PomodoroTimer, { type TimerResumeRequest } from "./PomodoroTimer";
 import StudyLog from "./StudyLog";
 
 export interface StudyAppProps {
+  userId: string;
   durations?: Partial<TimerDurations>;
 }
 
@@ -30,7 +32,12 @@ const NAV_LINK_CLASS =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 " +
   "focus-visible:outline-foreground";
 
-export default function StudyApp({ durations }: StudyAppProps) {
+export default function StudyApp({ userId, durations }: StudyAppProps) {
+  const {
+    subjects: subjectsStore,
+    sessions: sessionsStore,
+    durations: durationsStore,
+  } = useMemo(() => createAppStores(userId), [userId]);
   const subjects = useSyncExternalStore(
     subjectsStore.subscribe,
     subjectsStore.getSnapshot,
@@ -56,6 +63,13 @@ export default function StudyApp({ durations }: StudyAppProps) {
   } | null>(null);
 
   useEffect(() => {
+    migrateLegacyLocalStorage(userId);
+    subjectsStore.invalidate();
+    sessionsStore.invalidate();
+    durationsStore.invalidate();
+  }, [userId, subjectsStore, sessionsStore, durationsStore]);
+
+  useEffect(() => {
     const controller = new AbortController();
     void pullRemoteState(controller.signal).then((remote) => {
       if (!remote || controller.signal.aborted) {
@@ -69,7 +83,7 @@ export default function StudyApp({ durations }: StudyAppProps) {
       );
     });
     return () => controller.abort();
-  }, []);
+  }, [subjectsStore, sessionsStore]);
 
   function handleAddSubject(subject: string) {
     if (subjects.includes(subject)) {

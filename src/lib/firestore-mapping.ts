@@ -4,6 +4,15 @@ import type { StudySession } from "./sessions";
 export const SESSION_COLLECTION = "sessions";
 export const CONFIG_COLLECTION = "config";
 export const SUBJECTS_DOCUMENT = "subjects";
+export const USERS_COLLECTION = "users";
+
+export function userSessionsPath(userId: string): string {
+  return `${USERS_COLLECTION}/${userId}/${SESSION_COLLECTION}`;
+}
+
+export function userConfigPath(userId: string): string {
+  return `${USERS_COLLECTION}/${userId}/${CONFIG_COLLECTION}`;
+}
 
 export function sessionToDocument(
   session: StudySession,

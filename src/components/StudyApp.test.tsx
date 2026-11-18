@@ -10,32 +10,26 @@ import {
 import userEvent from "@testing-library/user-event";
 import axe from "axe-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { durationsStore, sessionsStore, subjectsStore } from "@/lib/app-store";
-import {
-  loadDurations,
-  loadSessions,
-  loadSubjects,
-  saveSubjects,
-} from "@/lib/storage";
+import { createUserStorage } from "@/lib/storage";
 import StudyApp from "./StudyApp";
+
+const USER_ID = "test-user";
+const userStorage = createUserStorage(USER_ID);
 
 beforeEach(() => {
   window.localStorage.clear();
-  subjectsStore.invalidate();
-  sessionsStore.invalidate();
-  durationsStore.invalidate();
+  window.localStorage.setItem(`pomodoro.${USER_ID}.legacyMigrated.v1`, "1");
 });
 
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
   window.localStorage.clear();
-  durationsStore.invalidate();
 });
 
 describe("StudyApp", () => {
   it("usa landmarks, un único h1 y un enlace de salto", () => {
-    render(<StudyApp />);
+    render(<StudyApp userId={USER_ID} />);
 
     expect(screen.getByRole("banner")).toBeInTheDocument();
     expect(screen.getByRole("main")).toBeInTheDocument();
@@ -47,7 +41,7 @@ describe("StudyApp", () => {
   });
 
   it("ofrece navegación fija hacia el temporizador y el registro", () => {
-    render(<StudyApp />);
+    render(<StudyApp userId={USER_ID} />);
 
     expect(
       screen.getByRole("navigation", { name: "Secciones principales" }),
@@ -64,7 +58,7 @@ describe("StudyApp", () => {
 
   it("es operable solo con teclado", async () => {
     const user = userEvent.setup();
-    render(<StudyApp />);
+    render(<StudyApp userId={USER_ID} />);
 
     await user.tab();
     expect(
@@ -92,14 +86,13 @@ describe("StudyApp", () => {
   });
 
   it("registra la sesión al iniciar, la completa al terminar y actualiza las estadísticas", () => {
-    saveSubjects(["Matemáticas"]);
-    subjectsStore.invalidate();
+    userStorage.saveSubjects(["Matemáticas"]);
     vi.useFakeTimers();
-    render(<StudyApp durations={{ focus: 60 }} />);
+    render(<StudyApp userId={USER_ID} durations={{ focus: 60 }} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Iniciar" }));
-    expect(loadSessions()).toHaveLength(1);
-    expect(loadSessions()[0]?.status).toBe("in-progress");
+    expect(userStorage.loadSessions()).toHaveLength(1);
+    expect(userStorage.loadSessions()[0]?.status).toBe("in-progress");
 
     act(() => {
       vi.advanceTimersByTime(60000);
@@ -113,15 +106,14 @@ describe("StudyApp", () => {
     expect(
       within(screen.getByRole("table")).getByText("Matemáticas"),
     ).toBeInTheDocument();
-    expect(loadSessions()).toHaveLength(1);
-    expect(loadSessions()[0]?.status).toBe("completed");
+    expect(userStorage.loadSessions()).toHaveLength(1);
+    expect(userStorage.loadSessions()[0]?.status).toBe("completed");
   });
 
   it("guarda la sesión como en pausa y la reanuda desde el historial", () => {
-    saveSubjects(["Matemáticas"]);
-    subjectsStore.invalidate();
+    userStorage.saveSubjects(["Matemáticas"]);
     vi.useFakeTimers();
-    render(<StudyApp durations={{ focus: 60 }} />);
+    render(<StudyApp userId={USER_ID} durations={{ focus: 60 }} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Iniciar" }));
     act(() => {
@@ -129,7 +121,7 @@ describe("StudyApp", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Pausar" }));
 
-    expect(loadSessions()[0]).toEqual(
+    expect(userStorage.loadSessions()[0]).toEqual(
       expect.objectContaining({ status: "paused", remainingSeconds: 40 }),
     );
 
@@ -137,14 +129,14 @@ describe("StudyApp", () => {
     fireEvent.change(focusInput, { target: { value: "2" } });
     fireEvent.blur(focusInput);
 
-    expect(loadSessions()[0]).toEqual(
+    expect(userStorage.loadSessions()[0]).toEqual(
       expect.objectContaining({
         status: "paused",
         durationMinutes: 2,
         remainingSeconds: 120,
       }),
     );
-    expect(loadDurations().focus).toBe(120);
+    expect(userStorage.loadDurations().focus).toBe(120);
 
     const table = screen.getByRole("table");
     expect(within(table).getByText("En pausa")).toBeInTheDocument();
@@ -155,28 +147,26 @@ describe("StudyApp", () => {
       }),
     );
 
-    expect(loadSessions()[0]?.status).toBe("in-progress");
+    expect(userStorage.loadSessions()[0]?.status).toBe("in-progress");
     expect(screen.getByRole("button", { name: "Pausar" })).toBeInTheDocument();
     expect(screen.getByText("02:00")).toBeInTheDocument();
   });
 
   it("persiste los minutos de enfoque elegidos", () => {
-    render(<StudyApp />);
+    render(<StudyApp userId={USER_ID} />);
 
     const input = screen.getByLabelText("Minutos de enfoque");
     fireEvent.change(input, { target: { value: "40" } });
     fireEvent.blur(input);
 
-    expect(loadDurations().focus).toBe(2400);
-    expect(durationsStore.getSnapshot().focus).toBe(2400);
+    expect(userStorage.loadDurations().focus).toBe(2400);
     expect(screen.getByText("40:00")).toBeInTheDocument();
   });
 
   it("comparte las materias entre el temporizador y el registro", async () => {
-    saveSubjects(["Matemáticas"]);
-    subjectsStore.invalidate();
+    userStorage.saveSubjects(["Matemáticas"]);
     const user = userEvent.setup();
-    render(<StudyApp />);
+    render(<StudyApp userId={USER_ID} />);
 
     await user.type(screen.getByLabelText("Nueva materia"), "Química");
     await user.click(screen.getByRole("button", { name: "Agregar" }));
@@ -185,14 +175,13 @@ describe("StudyApp", () => {
     expect(
       within(subjectSelect).getByRole("option", { name: "Química" }),
     ).toBeInTheDocument();
-    expect(loadSubjects()).toContain("Química");
+    expect(userStorage.loadSubjects()).toContain("Química");
   });
 
   it("elimina una materia y la quita del temporizador", async () => {
-    saveSubjects(["Matemáticas", "Física"]);
-    subjectsStore.invalidate();
+    userStorage.saveSubjects(["Matemáticas", "Física"]);
     const user = userEvent.setup();
-    render(<StudyApp />);
+    render(<StudyApp userId={USER_ID} />);
 
     await user.click(screen.getByRole("button", { name: "Eliminar Física" }));
 
@@ -200,13 +189,12 @@ describe("StudyApp", () => {
     expect(
       within(subjectSelect).queryByRole("option", { name: "Física" }),
     ).toBeNull();
-    expect(loadSubjects()).not.toContain("Física");
+    expect(userStorage.loadSubjects()).not.toContain("Física");
   });
 
   it("no tiene violaciones de accesibilidad", async () => {
-    saveSubjects(["Matemáticas"]);
-    subjectsStore.invalidate();
-    const { container } = render(<StudyApp />);
+    userStorage.saveSubjects(["Matemáticas"]);
+    const { container } = render(<StudyApp userId={USER_ID} />);
 
     const results = await axe.run(container, {
       rules: { "color-contrast": { enabled: false } },

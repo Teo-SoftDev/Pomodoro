@@ -8,15 +8,25 @@ export interface PersistedState {
   sessions: StudySession[];
 }
 
+export interface StorageAccessors {
+  loadSubjects(storage?: Storage | null): string[];
+  saveSubjects(subjects: readonly string[], storage?: Storage | null): void;
+  loadDurations(storage?: Storage | null): TimerDurations;
+  saveDurations(durations: TimerDurations, storage?: Storage | null): void;
+  loadSessions(storage?: Storage | null): StudySession[];
+  saveSessions(
+    sessions: readonly StudySession[],
+    storage?: Storage | null,
+  ): void;
+  clearSessions(storage?: Storage | null): void;
+  clearAll(storage?: Storage | null): void;
+}
+
 export const DEFAULT_STATE: PersistedState = {
   subjects: [],
   durations: DEFAULT_DURATIONS,
   sessions: [],
 };
-
-const SUBJECTS_KEY = "pomodoro.subjects.v1";
-const DURATIONS_KEY = "pomodoro.durations.v1";
-const SESSIONS_KEY = "pomodoro.sessions.v1";
 
 function getStorage(): Storage | null {
   if (typeof window === "undefined") {
@@ -68,55 +78,85 @@ function writeValue(
   storage.setItem(key, JSON.stringify(value));
 }
 
-export function loadSubjects(storage: Storage | null = getStorage()): string[] {
-  return readValue(storage, SUBJECTS_KEY, isStringArray, []);
+function createStorageAccessors(namespace?: string): StorageAccessors {
+  const prefix = namespace ? `pomodoro.${namespace}` : "pomodoro";
+  const subjectsKey = `${prefix}.subjects.v1`;
+  const durationsKey = `${prefix}.durations.v1`;
+  const sessionsKey = `${prefix}.sessions.v1`;
+
+  return {
+    loadSubjects(storage: Storage | null = getStorage()): string[] {
+      return readValue(storage, subjectsKey, isStringArray, []);
+    },
+    saveSubjects(
+      subjects: readonly string[],
+      storage: Storage | null = getStorage(),
+    ): void {
+      writeValue(storage, subjectsKey, subjects);
+    },
+    loadDurations(storage: Storage | null = getStorage()): TimerDurations {
+      return readValue(storage, durationsKey, isDurations, DEFAULT_DURATIONS);
+    },
+    saveDurations(
+      durations: TimerDurations,
+      storage: Storage | null = getStorage(),
+    ): void {
+      writeValue(storage, durationsKey, durations);
+    },
+    loadSessions(storage: Storage | null = getStorage()): StudySession[] {
+      return readValue(storage, sessionsKey, isSessionArray, []);
+    },
+    saveSessions(
+      sessions: readonly StudySession[],
+      storage: Storage | null = getStorage(),
+    ): void {
+      writeValue(storage, sessionsKey, sessions);
+    },
+    clearSessions(storage: Storage | null = getStorage()): void {
+      if (storage) {
+        storage.removeItem(sessionsKey);
+      }
+    },
+    clearAll(storage: Storage | null = getStorage()): void {
+      if (!storage) {
+        return;
+      }
+      storage.removeItem(subjectsKey);
+      storage.removeItem(durationsKey);
+      storage.removeItem(sessionsKey);
+    },
+  };
 }
 
-export function saveSubjects(
-  subjects: readonly string[],
+const legacyStorage = createStorageAccessors();
+
+export const loadSubjects = legacyStorage.loadSubjects;
+export const saveSubjects = legacyStorage.saveSubjects;
+export const loadDurations = legacyStorage.loadDurations;
+export const saveDurations = legacyStorage.saveDurations;
+export const loadSessions = legacyStorage.loadSessions;
+export const saveSessions = legacyStorage.saveSessions;
+export const clearSessions = legacyStorage.clearSessions;
+export const clearAll = legacyStorage.clearAll;
+
+export function createUserStorage(userId: string): StorageAccessors {
+  return createStorageAccessors(userId);
+}
+
+export function migrateLegacyLocalStorage(
+  userId: string,
   storage: Storage | null = getStorage(),
 ): void {
-  writeValue(storage, SUBJECTS_KEY, subjects);
-}
-
-export function loadDurations(
-  storage: Storage | null = getStorage(),
-): TimerDurations {
-  return readValue(storage, DURATIONS_KEY, isDurations, DEFAULT_DURATIONS);
-}
-
-export function saveDurations(
-  durations: TimerDurations,
-  storage: Storage | null = getStorage(),
-): void {
-  writeValue(storage, DURATIONS_KEY, durations);
-}
-
-export function loadSessions(
-  storage: Storage | null = getStorage(),
-): StudySession[] {
-  return readValue(storage, SESSIONS_KEY, isSessionArray, []);
-}
-
-export function saveSessions(
-  sessions: readonly StudySession[],
-  storage: Storage | null = getStorage(),
-): void {
-  writeValue(storage, SESSIONS_KEY, sessions);
-}
-
-export function clearSessions(storage: Storage | null = getStorage()): void {
   if (!storage) {
     return;
   }
-  storage.removeItem(SESSIONS_KEY);
-}
-
-export function clearAll(storage: Storage | null = getStorage()): void {
-  if (!storage) {
+  const markerKey = `pomodoro.${userId}.legacyMigrated.v1`;
+  if (storage.getItem(markerKey) === "1") {
     return;
   }
-  storage.removeItem(SUBJECTS_KEY);
-  storage.removeItem(DURATIONS_KEY);
-  storage.removeItem(SESSIONS_KEY);
+  const userStorage = createUserStorage(userId);
+  userStorage.saveSubjects(legacyStorage.loadSubjects(storage), storage);
+  userStorage.saveDurations(legacyStorage.loadDurations(storage), storage);
+  userStorage.saveSessions(legacyStorage.loadSessions(storage), storage);
+  storage.setItem(markerKey, "1");
 }
